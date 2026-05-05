@@ -1334,7 +1334,7 @@ function cardHTML(p) {
   window._places[String(p.id)] = p;
   const safeId = String(p.id).replace(/'/g, '');
   return `
-    <div class="place-card" onclick="openDetailById('${safeId}')"
+    <div class="place-card" data-id="${safeId}" onclick="openDetailById('${safeId}')"
       style="--card-color:${cat.color}">
       <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:${cat.color};border-radius:4px 0 0 4px"></div>
       <div class="place-icon-wrap" style="background:${cat.color}22">${cat.icon}</div>
@@ -1511,13 +1511,16 @@ async function resolveAddr(p) {
     if (addr.trim()) {
       p.addr = addr;
       p.city = p.city || city;
-      // Update visible card if open
+      // Update detail sheet if open
       const loading = document.getElementById('detail-addr-loading');
       if (loading) loading.remove();
       const el = document.getElementById('detail-addr-val');
       if (el) el.textContent = addr;
       const el2 = document.getElementById('detail-addr-row');
       if (el2) el2.style.display = '';
+      // Update list card in-place without full re-render
+      const cardAddr = document.querySelector(`[data-id="${p.id}"] .place-addr`);
+      if (cardAddr) cardAddr.textContent = '📍 ' + addr;
     }
   } catch(e) { /* silently fail */ }
 }

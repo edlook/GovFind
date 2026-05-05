@@ -1078,7 +1078,7 @@ async function loadData() {
   let lat = userLat, lng = userLng;
   if (searchQ.length >= 2) {
     try {
-      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ)}&format=json&limit=10&addressdetails=1&countrycodes=de`;
+      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ + ', Deutschland')}&format=json&limit=5&addressdetails=1&countrycodes=de`;
       const gr = await fetch(geoUrl, {
         signal: AbortSignal.timeout(8000),
         headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' }

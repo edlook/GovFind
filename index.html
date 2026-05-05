@@ -1040,13 +1040,10 @@ function getCity(lat, lng) {
 async function loadData(bbox=null) {
   if (isLoading) return;
 
-  // If only category changed and we have cached results for this city → filter locally
+  // If cache exists for this city → always filter locally, no new fetch needed
   if (!bbox && allResults.length > 0 && lastCityLat !== null) {
-    const catChanged = !(filterCats.has('all'));
-    if (catChanged) {
-      applyFilterAndRender(lastCityLat, lastCityLng);
-      return;
-    }
+    applyFilterAndRender(lastCityLat, lastCityLng);
+    return;
   }
 
   isLoading = true;
@@ -1083,6 +1080,10 @@ async function loadData(bbox=null) {
         lat = parseFloat(best.lat);
         lng = parseFloat(best.lon);
         const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
+        // Reset cache when city changes
+        if (Math.abs(lat - lastCityLat) > 0.05 || Math.abs(lng - lastCityLng) > 0.05) {
+          allResults = []; lastCityLat = null; lastCityLng = null;
+        }
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) {
           map.flyTo([lat, lng], 13, { duration: 1.2 });
@@ -1214,7 +1215,7 @@ function parseOSM(elements, refLat, refLng) {
     ger:['courthouse'],
     soz:['social_facility','social_welfare'],
     pos:['post_office'],
-    ver:['station','bus_station'],
+    ver:['station','bus_station','tram_stop','halt','subway_entrance'],
   };
 
   const seen = new Set();
@@ -1394,7 +1395,7 @@ function setCat(id) {
   renderCatPills();
   if (allResults.length > 0 && lastCityLat !== null) {
     applyFilterAndRender(lastCityLat, lastCityLng);
-  } else if (userLat || searchQ.length >= 3) {
+  } else if (searchQ.length >= 2 || userLat) {
     loadData();
   }
 }

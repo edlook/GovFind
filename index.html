@@ -920,6 +920,7 @@ let selectedPlace = null;
 let isLoading = false;
 let allResults = []; // full cache for current city — filter locally without re-fetching
 let lastCityLat = null, lastCityLng = null; // track if city changed
+let lastSearchQ = ''; // track if search query changed
 
 // ════════════════════════════════════════
 // INIT
@@ -1040,8 +1041,9 @@ function getCity(lat, lng) {
 async function loadData(bbox=null) {
   if (isLoading) return;
 
-  // If cache exists for this city → always filter locally, no new fetch needed
-  if (!bbox && allResults.length > 0 && lastCityLat !== null) {
+  // Use cache only if same city (searchQ unchanged) → filter locally
+  const currentQ = searchQ.trim().toLowerCase();
+  if (!bbox && allResults.length > 0 && lastCityLat !== null && currentQ === lastSearchQ) {
     applyFilterAndRender(lastCityLat, lastCityLng);
     return;
   }
@@ -1080,10 +1082,7 @@ async function loadData(bbox=null) {
         lat = parseFloat(best.lat);
         lng = parseFloat(best.lon);
         const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
-        // Reset cache when city changes
-        if (Math.abs(lat - lastCityLat) > 0.05 || Math.abs(lng - lastCityLng) > 0.05) {
-          allResults = []; lastCityLat = null; lastCityLng = null;
-        }
+
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) {
           map.flyTo([lat, lng], 13, { duration: 1.2 });
@@ -1165,6 +1164,7 @@ async function loadData(bbox=null) {
     // Cache full results
     allResults = parseOSM(elements, lat, lng);
     lastCityLat = lat; lastCityLng = lng;
+    lastSearchQ = searchQ.trim().toLowerCase();
 
     applyFilterAndRender(lat, lng);
     showLoading(false);

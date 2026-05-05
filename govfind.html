@@ -1,0 +1,1808 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0f1117">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="GovFind">
+<title>GovFind · Behörden Deutschland</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+<style>
+/* ═══════════════════════════════════════
+   DESIGN TOKENS
+═══════════════════════════════════════ */
+:root {
+  --bg:        #0f1117;
+  --bg2:       #1a1d27;
+  --bg3:       #232736;
+  --border:    rgba(255,255,255,0.08);
+  --accent:    #4f7cff;
+  --accent2:   #7c5cfc;
+  --green:     #22c55e;
+  --red:       #ef4444;
+  --amber:     #f59e0b;
+  --text:      #f1f5f9;
+  --text2:     #94a3b8;
+  --text3:     #475569;
+  --white:     #ffffff;
+  --nav-h:     72px;
+  --safe-top:  env(safe-area-inset-top, 0px);
+  --safe-bot:  env(safe-area-inset-bottom, 0px);
+  --r:         18px;
+  --r-sm:      12px;
+  --r-xs:      8px;
+
+  /* Category colors */
+  --c-amt:     #4f7cff;
+  --c-pol:     #ef4444;
+  --c-med:     #22c55e;
+  --c-edu:     #f59e0b;
+  --c-kul:     #a855f7;
+  --c-ger:     #f97316;
+  --c-soz:     #ec4899;
+  --c-pos:     #14b8a6;
+  --c-ver:     #64748b;
+  --c-feu:     #dc2626;
+}
+
+/* ── LIGHT THEME ── */
+[data-theme="light"] {
+  --bg:        #f4f6fb;
+  --bg2:       #ffffff;
+  --bg3:       #e8ecf4;
+  --border:    rgba(0,0,0,0.09);
+  --text:      #0f172a;
+  --text2:     #475569;
+  --text3:     #94a3b8;
+}
+[data-theme="light"] .map-fab { background: #ffffff; color: #0f172a; box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+[data-theme="light"] .bottom-nav { background: rgba(255,255,255,0.97); border-top: 1px solid rgba(0,0,0,0.1); }
+[data-theme="light"] .nav-btn .nav-lb { color: var(--text2); }
+[data-theme="light"] .nav-btn.active .nav-lb { color: var(--accent); }
+[data-theme="light"] .header { background: rgba(244,246,251,0.97); border-bottom: 1px solid rgba(0,0,0,0.08); }
+[data-theme="light"] .header-title { color: var(--text); }
+[data-theme="light"] .header-subtitle { color: var(--text3); }
+[data-theme="light"] .search-box { background: var(--bg3); }
+[data-theme="light"] .search-input { color: var(--text); }
+[data-theme="light"] .filter-btn { color: var(--text2); background: var(--bg2); border-color: var(--border); }
+[data-theme="light"] .city-label { color: var(--text); }
+[data-theme="light"] .place-name { color: var(--text); }
+[data-theme="light"] .place-type { color: var(--accent); }
+[data-theme="light"] .detail-sheet { background: var(--bg2); }
+[data-theme="light"] .modal-body { background: var(--bg); }
+[data-theme="light"] .leaflet-tile { filter: brightness(1.05) saturate(0.9); }
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { height:100%; overflow:hidden; background:var(--bg); }
+
+body {
+  font-family: 'Outfit', sans-serif;
+  color: var(--text);
+  position: fixed; width:100%; height:100%;
+}
+
+/* ═══════════════════════════════════════
+   SCREENS
+═══════════════════════════════════════ */
+.screen { display:none; flex-direction:column; height:100%; overflow:hidden; }
+.screen.active { display:flex; }
+
+/* ═══════════════════════════════════════
+   SPLASH
+═══════════════════════════════════════ */
+#splash {
+  background: linear-gradient(145deg, #0f1117 0%, #1a1d27 50%, #0f1117 100%);
+  display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  height:100%; position:fixed; inset:0; z-index:999;
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+#splash.hide { opacity:0; transform:scale(1.05); pointer-events:none; }
+.splash-logo {
+  width:88px; height:88px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius:24px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:40px;
+  box-shadow: 0 24px 64px rgba(79,124,255,0.4);
+  margin-bottom:24px;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%,100% { transform:scale(1); box-shadow:0 24px 64px rgba(79,124,255,0.4); }
+  50% { transform:scale(1.04); box-shadow:0 32px 80px rgba(79,124,255,0.6); }
+}
+.splash-title { font-size:32px; font-weight:800; color:var(--white); letter-spacing:-0.5px; }
+.splash-sub { font-size:15px; color:var(--text2); margin-top:6px; }
+.splash-loader {
+  margin-top:48px;
+  width:160px; height:3px;
+  background:var(--bg3);
+  border-radius:2px; overflow:hidden;
+}
+.splash-loader-bar {
+  height:100%;
+  background: linear-gradient(90deg, var(--accent), var(--accent2));
+  border-radius:2px;
+  animation: load 2s ease-in-out forwards;
+}
+@keyframes load { from{width:0} to{width:100%} }
+
+/* ═══════════════════════════════════════
+   HEADER
+═══════════════════════════════════════ */
+.header {
+  padding: calc(var(--safe-top) + 14px) 20px 14px;
+  background: var(--bg);
+  display:flex; align-items:center; gap:12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink:0;
+  position:relative; z-index:10;
+}
+.header-logo {
+  width:38px; height:38px;
+  background: linear-gradient(135deg, var(--accent), var(--accent2));
+  border-radius:11px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:19px; flex-shrink:0;
+}
+.header-title { font-size:19px; font-weight:700; color:var(--white); flex:1; }
+.header-subtitle { font-size:11px; color:var(--text3); font-weight:400; }
+.header-action {
+  width:38px; height:38px;
+  background:var(--bg2);
+  border:1px solid var(--border);
+  border-radius:11px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; cursor:pointer; flex-shrink:0;
+  transition: background 0.2s;
+}
+.header-action:active { background:var(--bg3); }
+
+/* ═══════════════════════════════════════
+   SEARCH
+═══════════════════════════════════════ */
+.search-wrap { padding:12px 16px; background:var(--bg); flex-shrink:0; }
+.search-outer {
+  display:flex; gap:10px; align-items:center;
+}
+.search-box {
+  flex:1;
+  display:flex; align-items:center; gap:10px;
+  background:var(--bg2);
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  padding:11px 14px;
+  transition: border-color 0.2s;
+}
+.search-box:focus-within { border-color:var(--accent); }
+.search-icon { font-size:16px; color:var(--text3); flex-shrink:0; }
+.search-input {
+  flex:1; border:none; background:transparent;
+  font-family:'Outfit',sans-serif; font-size:15px;
+  color:var(--text); outline:none;
+}
+.search-input::placeholder { color:var(--text3); }
+.search-x {
+  width:22px; height:22px; border-radius:50%;
+  background:var(--bg3); border:none;
+  color:var(--text2); font-size:12px;
+  cursor:pointer; display:none;
+  align-items:center; justify-content:center; flex-shrink:0;
+}
+.search-x.vis { display:flex; }
+.filter-btn {
+  width:44px; height:44px;
+  background:var(--bg2);
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; cursor:pointer; flex-shrink:0;
+  transition: all 0.2s;
+}
+.filter-btn.active { background:var(--accent); border-color:var(--accent); }
+
+/* ═══════════════════════════════════════
+   LOCATION BAR
+═══════════════════════════════════════ */
+.loc-bar {
+  display:none; padding:10px 16px;
+  background: rgba(79,124,255,0.12);
+  border-bottom:1px solid rgba(79,124,255,0.2);
+  flex-shrink:0;
+  align-items:center; gap:8px;
+}
+.loc-bar.show { display:flex; }
+.loc-dot {
+  width:8px; height:8px; border-radius:50%;
+  background:var(--accent);
+  animation: blink 2s ease infinite;
+  flex-shrink:0;
+}
+@keyframes blink {
+  0%,100%{opacity:1} 50%{opacity:0.4}
+}
+.loc-text { font-size:13px; color:var(--accent); font-weight:500; flex:1; }
+.loc-nearby {
+  background:var(--accent); color:var(--white);
+  border:none; border-radius:8px;
+  padding:5px 12px; font-size:12px; font-weight:600;
+  cursor:pointer; font-family:'Outfit',sans-serif;
+  white-space:nowrap;
+}
+
+/* ═══════════════════════════════════════
+   CATEGORY PILLS
+═══════════════════════════════════════ */
+.cats-wrap {
+  padding:10px 0 10px 16px;
+  overflow-x:auto; display:flex; gap:8px;
+  background:var(--bg); flex-shrink:0;
+  scrollbar-width:none;
+}
+.cats-wrap::-webkit-scrollbar{display:none}
+.cat-pill {
+  display:flex; align-items:center; gap:6px;
+  padding:7px 14px;
+  border-radius:20px;
+  border:1.5px solid var(--border);
+  background:var(--bg2);
+  font-size:13px; font-weight:500; color:var(--text2);
+  cursor:pointer; white-space:nowrap; flex-shrink:0;
+  transition:all 0.2s;
+}
+.cat-pill.active {
+  color:var(--white);
+  border-color:transparent;
+}
+.cat-pill-dot {
+  width:7px; height:7px; border-radius:50%;
+}
+
+/* ═══════════════════════════════════════
+   RESULT STATS
+═══════════════════════════════════════ */
+.result-stats {
+  padding:8px 16px;
+  display:flex; align-items:center; gap:6px;
+  flex-shrink:0;
+}
+.stat-count {
+  font-size:13px; font-weight:600; color:var(--accent);
+}
+.stat-label { font-size:13px; color:var(--text3); }
+.stat-loader { display:none; }
+.stat-loader.show { display:flex; align-items:center; gap:6px; }
+.mini-dots { display:flex; gap:4px; }
+.mini-dots span {
+  width:5px; height:5px; border-radius:50%;
+  background:var(--accent);
+  animation:bounce 1s infinite;
+}
+.mini-dots span:nth-child(2){animation-delay:.15s}
+.mini-dots span:nth-child(3){animation-delay:.3s}
+@keyframes bounce{0%,80%,100%{transform:scale(0.5);opacity:0.4}40%{transform:scale(1);opacity:1}}
+
+/* ═══════════════════════════════════════
+   LIST
+═══════════════════════════════════════ */
+.list-scroll {
+  flex:1; overflow-y:auto; padding:4px 16px 0;
+  padding-bottom:calc(var(--nav-h) + var(--safe-bot) + 12px);
+}
+.list-scroll::-webkit-scrollbar{display:none}
+
+.city-group { margin-bottom:4px; }
+.city-label {
+  font-size:11px; font-weight:700;
+  color:var(--text3); letter-spacing:1.5px;
+  text-transform:uppercase;
+  padding:14px 0 8px;
+  display:flex; align-items:center; gap:8px;
+}
+.city-label::after {
+  content:''; flex:1; height:1px;
+  background:var(--border);
+}
+
+.place-card {
+  background:var(--bg2);
+  border-radius:var(--r);
+  border:1.5px solid var(--border);
+  padding:14px 16px;
+  margin-bottom:10px;
+  display:flex; gap:12px; align-items:flex-start;
+  cursor:pointer;
+  transition:all 0.18s;
+  position:relative; overflow:hidden;
+}
+.place-card::before {
+  content:''; position:absolute;
+  left:0; top:0; bottom:0; width:3px;
+}
+.place-card:active { transform:scale(0.985); background:var(--bg3); }
+
+.place-icon-wrap {
+  width:46px; height:46px;
+  border-radius:13px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:22px; flex-shrink:0;
+}
+.place-body { flex:1; min-width:0; }
+.place-name {
+  font-size:15px; font-weight:600;
+  color:var(--white); margin-bottom:2px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.place-type {
+  font-size:12px; font-weight:500;
+  margin-bottom:5px;
+}
+.place-addr {
+  font-size:12px; color:var(--text2);
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+}
+.place-footer {
+  display:flex; align-items:center; gap:8px; margin-top:7px;
+  flex-wrap:wrap;
+}
+.badge-open, .badge-closed {
+  font-size:11px; font-weight:600;
+  padding:2px 9px; border-radius:6px;
+}
+.badge-open { background:rgba(34,197,94,0.15); color:var(--green); }
+.badge-closed { background:rgba(239,68,68,0.15); color:var(--red); }
+.badge-dist {
+  font-size:11px; color:var(--text3); font-weight:500;
+}
+.badge-fav { font-size:13px; }
+.place-arrow {
+  color:var(--text3); font-size:18px;
+  align-self:center; flex-shrink:0;
+}
+
+/* ═══════════════════════════════════════
+   EMPTY / LOADING STATES
+═══════════════════════════════════════ */
+.state-wrap {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center;
+  gap:14px; padding:40px;
+  text-align:center;
+}
+.state-icon { font-size:52px; opacity:0.35; }
+.state-title { font-size:18px; font-weight:700; color:var(--text2); }
+.state-sub { font-size:14px; color:var(--text3); line-height:1.6; }
+.state-btn {
+  margin-top:8px;
+  background:var(--accent); color:var(--white);
+  border:none; border-radius:12px;
+  padding:12px 28px; font-size:14px; font-weight:600;
+  cursor:pointer; font-family:'Outfit',sans-serif;
+}
+
+/* ═══════════════════════════════════════
+   MAP
+═══════════════════════════════════════ */
+#map-screen { position:relative; }
+#map { flex:1; background:var(--bg2); }
+
+/* Override Leaflet dark theme */
+.leaflet-tile-pane { filter:brightness(0.85) saturate(0.9); }
+
+.map-fab-group {
+  position:absolute;
+  right:16px; bottom:calc(var(--nav-h) + var(--safe-bot) + 20px);
+  display:flex; flex-direction:column; gap:10px;
+  z-index:400;
+}
+.map-fab {
+  width:48px; height:48px;
+  background:var(--bg2);
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:20px; cursor:pointer;
+  box-shadow:0 4px 20px rgba(0,0,0,0.4);
+  transition:all 0.2s;
+}
+.map-fab:active { background:var(--bg3); transform:scale(0.94); }
+.map-fab.primary { background: linear-gradient(135deg,var(--accent),var(--accent2)); border-color:transparent; }
+
+/* Search on map overlay */
+.map-search-overlay {
+  position:absolute; top:0; left:0; right:0; z-index:400;
+  padding:12px 16px;
+  background: linear-gradient(180deg, rgba(15,17,23,0.95) 70%, transparent);
+  padding-top:calc(var(--safe-top) + 12px);
+}
+
+/* ═══════════════════════════════════════
+   FILTER MODAL
+═══════════════════════════════════════ */
+.modal-backdrop {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.7);
+  z-index:600; display:none;
+  backdrop-filter:blur(6px);
+}
+.modal-backdrop.open { display:block; }
+
+.filter-modal {
+  position:fixed;
+  bottom:0; left:0; right:0;
+  background:var(--bg2);
+  border-radius:28px 28px 0 0;
+  z-index:601;
+  transform:translateY(100%);
+  transition:transform 0.38s cubic-bezier(0.32,0.72,0,1);
+  max-height:85dvh;
+  display:flex; flex-direction:column;
+  padding-bottom:calc(20px + var(--safe-bot));
+}
+.filter-modal.open { transform:translateY(0); }
+.modal-handle {
+  width:40px; height:4px; background:var(--bg3);
+  border-radius:2px; margin:14px auto 0;
+  flex-shrink:0;
+}
+.modal-header {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px 20px 12px;
+  flex-shrink:0;
+}
+.modal-title { font-size:18px; font-weight:700; }
+.modal-reset {
+  background:none; border:none; color:var(--accent);
+  font-size:14px; font-weight:600;
+  cursor:pointer; font-family:'Outfit',sans-serif;
+}
+.modal-scroll { overflow-y:auto; padding:0 20px 8px; }
+.modal-scroll::-webkit-scrollbar{display:none}
+.modal-section-title {
+  font-size:12px; font-weight:700;
+  color:var(--text3); letter-spacing:1.5px;
+  text-transform:uppercase; padding:10px 0 8px;
+}
+.filter-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
+.filter-tile {
+  background:var(--bg3);
+  border:1.5px solid var(--border);
+  border-radius:14px;
+  padding:12px;
+  display:flex; align-items:center; gap:10px;
+  cursor:pointer; transition:all 0.18s;
+}
+.filter-tile.active {
+  border-color:var(--accent);
+  background:rgba(79,124,255,0.12);
+}
+.filter-tile-icon {
+  width:36px; height:36px; border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px; flex-shrink:0;
+}
+.filter-tile-label { font-size:13px; font-weight:600; color:var(--text); }
+.filter-tile-sub { font-size:11px; color:var(--text3); }
+.modal-apply {
+  margin:12px 20px 0;
+  padding:16px;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  color:var(--white); border:none; border-radius:16px;
+  font-size:16px; font-weight:700;
+  cursor:pointer; font-family:'Outfit',sans-serif;
+  width:calc(100% - 40px);
+  flex-shrink:0;
+}
+
+/* ═══════════════════════════════════════
+   DETAIL SHEET
+═══════════════════════════════════════ */
+.detail-backdrop {
+  position:fixed; inset:0;
+  background:rgba(0,0,0,0.6);
+  z-index:700; display:none;
+  backdrop-filter:blur(4px);
+}
+.detail-backdrop.open { display:block; }
+
+.detail-sheet {
+  position:fixed; bottom:0; left:0; right:0;
+  background:var(--bg2);
+  border-radius:28px 28px 0 0;
+  z-index:701;
+  transform:translateY(100%);
+  transition:transform 0.38s cubic-bezier(0.32,0.72,0,1);
+  max-height:90dvh;
+  display:flex; flex-direction:column;
+  padding-bottom:calc(16px + var(--safe-bot));
+}
+.detail-sheet.open { transform:translateY(0); }
+.sheet-handle {
+  width:40px; height:4px; background:var(--bg3);
+  border-radius:2px; margin:14px auto 0; flex-shrink:0;
+}
+.sheet-body { overflow-y:auto; padding:0 20px 20px; }
+.sheet-body::-webkit-scrollbar{display:none}
+
+.detail-hero {
+  display:flex; align-items:flex-start; gap:14px;
+  padding:18px 0 16px;
+  border-bottom:1px solid var(--border);
+  margin-bottom:4px;
+}
+.detail-icon {
+  width:60px; height:60px; border-radius:18px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:28px; flex-shrink:0;
+}
+.detail-name { font-size:20px; font-weight:700; line-height:1.2; color:var(--white); }
+.detail-type { font-size:13px; font-weight:500; margin-top:4px; }
+.detail-city { font-size:12px; color:var(--text3); margin-top:2px; }
+
+/* Action bar */
+.action-bar {
+  display:grid; grid-template-columns:repeat(4,1fr);
+  gap:8px; padding:14px 0;
+  border-bottom:1px solid var(--border);
+}
+.action-tile {
+  display:flex; flex-direction:column;
+  align-items:center; gap:6px;
+  padding:12px 8px;
+  background:var(--bg3);
+  border-radius:14px; cursor:pointer;
+  border:none; font-family:'Outfit',sans-serif;
+  transition:all 0.18s;
+}
+.action-tile:active { transform:scale(0.94); }
+.action-tile-icon { font-size:22px; }
+.action-tile-label { font-size:10px; font-weight:600; color:var(--text2); }
+
+/* Info rows */
+.info-block { padding:4px 0; }
+.info-row {
+  display:flex; align-items:flex-start; gap:12px;
+  padding:12px 0;
+  border-bottom:1px solid var(--border);
+}
+.info-row:last-child { border-bottom:none; }
+.info-icon { font-size:18px; width:24px; flex-shrink:0; margin-top:1px; color:var(--text2); }
+.info-content { flex:1; }
+.info-label {
+  font-size:10px; font-weight:700;
+  color:var(--text3); letter-spacing:1px;
+  text-transform:uppercase; margin-bottom:3px;
+}
+.info-val { font-size:14px; color:var(--text); line-height:1.5; }
+.info-link { color:var(--accent); text-decoration:none; }
+
+.hours-grid { display:grid; grid-template-columns:auto 1fr; gap:3px 12px; margin-top:4px; }
+.h-day { font-size:13px; color:var(--text2); }
+.h-time { font-size:13px; color:var(--text); font-weight:500; }
+.h-today { color:var(--green); font-weight:700; }
+
+/* Reviews */
+.reviews-wrap { padding-top:4px; }
+.reviews-title { font-size:16px; font-weight:700; padding:14px 0 10px; }
+.review-item {
+  background:var(--bg3); border-radius:14px;
+  padding:14px; margin-bottom:10px;
+}
+.review-top { display:flex; align-items:center; gap:10px; margin-bottom:8px; }
+.rev-av {
+  width:34px; height:34px; border-radius:50%;
+  background:linear-gradient(135deg,var(--accent),var(--accent2));
+  display:flex; align-items:center; justify-content:center;
+  font-size:14px; font-weight:700; color:var(--white); flex-shrink:0;
+}
+.rev-name { font-size:14px; font-weight:600; }
+.rev-stars { color:var(--amber); font-size:12px; margin-top:1px; }
+.rev-text { font-size:13px; color:var(--text2); line-height:1.6; }
+.add-review-btn {
+  width:100%; padding:13px;
+  background:var(--bg3);
+  border:1.5px dashed var(--border);
+  border-radius:14px;
+  color:var(--text2); font-size:14px; font-weight:500;
+  cursor:pointer; font-family:'Outfit',sans-serif;
+  transition:all 0.2s; margin-top:4px;
+}
+.add-review-btn:active { background:var(--bg2); }
+
+/* ═══════════════════════════════════════
+   BOTTOM NAV
+═══════════════════════════════════════ */
+.bottom-nav {
+  position:fixed; bottom:0; left:0; right:0;
+  height:calc(var(--nav-h) + var(--safe-bot));
+  background:rgba(15,17,23,0.95);
+  color:var(--text);
+  border-top:1px solid var(--border);
+  display:flex; z-index:500;
+  padding-bottom:var(--safe-bot);
+  backdrop-filter:blur(20px);
+}
+.nav-btn {
+  flex:1; display:flex; flex-direction:column;
+  align-items:center; justify-content:center; gap:4px;
+  border:none; background:transparent;
+  cursor:pointer; padding:8px;
+  transition:all 0.2s;
+  position:relative;
+}
+.nav-btn .nav-ic { font-size:24px; transition:transform 0.2s; }
+.nav-btn .nav-lb { font-size:10px; font-weight:600; color:var(--text3); letter-spacing:0.3px; transition:color 0.2s; }
+.nav-btn.active .nav-lb { color:var(--accent); }
+.nav-btn.active .nav-ic { transform:scale(1.1); }
+.nav-indicator {
+  position:absolute; top:8px;
+  width:20px; height:3px;
+  background:linear-gradient(90deg,var(--accent),var(--accent2));
+  border-radius:0 0 4px 4px;
+  display:none;
+}
+.nav-btn.active .nav-indicator { display:block; }
+
+/* ═══════════════════════════════════════
+   FAVORITES
+═══════════════════════════════════════ */
+#fav-list { flex:1; overflow-y:auto; padding:4px 16px; padding-bottom:calc(var(--nav-h) + var(--safe-bot) + 12px); }
+#fav-list::-webkit-scrollbar{display:none}
+
+/* ═══════════════════════════════════════
+   LEAFLET CUSTOM
+═══════════════════════════════════════ */
+.leaflet-popup-content-wrapper {
+  background:var(--bg2) !important;
+  border-radius:16px !important;
+  box-shadow:0 8px 40px rgba(0,0,0,0.5) !important;
+  border:1px solid var(--border) !important;
+  padding:0 !important;
+}
+.leaflet-popup-content { margin:0 !important; min-width:220px; }
+.leaflet-popup-tip { background:var(--bg2) !important; }
+.popup-body { padding:14px 16px; }
+.popup-name { font-size:14px; font-weight:700; color:var(--white); margin-bottom:3px; }
+.popup-type { font-size:12px; font-weight:500; margin-bottom:6px; }
+.popup-addr { font-size:12px; color:var(--text2); margin-bottom:12px; }
+.popup-actions { display:flex; gap:8px; }
+.popup-btn-detail, .popup-btn-route {
+  flex:1; padding:9px 0;
+  border-radius:10px; border:none;
+  font-size:12px; font-weight:700;
+  cursor:pointer; font-family:'Outfit',sans-serif;
+  transition:opacity 0.2s;
+}
+.popup-btn-detail { background:var(--accent); color:var(--white); }
+.popup-btn-route { background:var(--bg3); color:var(--text); }
+
+/* Toast */
+.toast {
+  position:fixed; bottom:calc(var(--nav-h) + var(--safe-bot) + 16px);
+  left:50%; transform:translateX(-50%) translateY(20px);
+  background:var(--bg2); border:1px solid var(--border);
+  border-radius:14px; padding:11px 20px;
+  font-size:14px; font-weight:500;
+  box-shadow:0 8px 32px rgba(0,0,0,0.4);
+  z-index:900; opacity:0;
+  transition:all 0.3s;
+  white-space:nowrap;
+}
+.toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* Skeleton loader */
+.skeleton-card {
+  background:var(--bg2); border-radius:var(--r);
+  border:1.5px solid var(--border);
+  padding:14px 16px; margin-bottom:10px;
+  display:flex; gap:12px;
+}
+.skel { background:var(--bg3); border-radius:8px; animation:shimmer 1.5s ease infinite; }
+@keyframes shimmer{0%,100%{opacity:0.4}50%{opacity:0.8}}
+.skel-icon { width:46px; height:46px; border-radius:13px; flex-shrink:0; }
+.skel-body { flex:1; display:flex; flex-direction:column; gap:8px; }
+.skel-line { height:12px; }
+.skel-short { width:60%; }
+</style>
+</head>
+<body>
+
+<!-- ════════ SPLASH ════════ -->
+<div id="splash">
+  <div class="splash-logo">🏛️</div>
+  <div class="splash-title">GovFind</div>
+  <div class="splash-sub">Behörden · Deutschland</div>
+  <div class="splash-loader"><div class="splash-loader-bar"></div></div>
+</div>
+
+<!-- ════════ SCREEN: LISTE ════════ -->
+<div id="screen-list" class="screen active">
+  <div class="header">
+    <div class="header-logo">🏛️</div>
+    <div style="flex:1">
+      <div class="header-title">GovFind</div>
+      <div class="header-subtitle" id="hdr-sub">Behörden in Deutschland</div>
+    </div>
+    <button class="header-action" onclick="locateMe()" title="Standort">📍</button>
+    <button class="header-action" id="theme-btn" onclick="toggleTheme()" title="Theme wechseln">🌙</button>
+  </div>
+
+  <div id="loc-bar" class="loc-bar">
+    <div class="loc-dot"></div>
+    <div class="loc-text" id="loc-text">Standort erkannt</div>
+    <button class="loc-nearby" onclick="searchNearby()">In der Nähe</button>
+  </div>
+
+  <div class="search-wrap">
+    <div class="search-outer">
+      <div class="search-box">
+        <span class="search-icon">🔍</span>
+        <input class="search-input" id="q" type="text"
+          placeholder="Bürgeramt, Berlin, Finanzamt…"
+          oninput="onQ(this.value)">
+        <button class="search-x" id="qx" onclick="clearQ()">✕</button>
+      </div>
+      <button class="filter-btn" id="filter-btn" onclick="openFilter()">⚙️</button>
+    </div>
+  </div>
+
+  <div class="cats-wrap" id="cat-pills"></div>
+
+  <div class="result-stats" id="result-stats">
+    <div class="stat-loader show" id="stat-loader">
+      <div class="mini-dots"><span></span><span></span><span></span></div>
+      <span style="font-size:13px;color:var(--text3)">Lade Daten…</span>
+    </div>
+    <span class="stat-count" id="stat-count" style="display:none"></span>
+    <span class="stat-label" id="stat-label" style="display:none"></span>
+  </div>
+
+  <div class="list-scroll" id="list-body"></div>
+</div>
+
+<!-- ════════ SCREEN: KARTE ════════ -->
+<div id="screen-map" class="screen" style="position:relative">
+  <div class="header">
+    <div class="header-logo">🗺️</div>
+    <div style="flex:1">
+      <div class="header-title">Karte</div>
+      <div class="header-subtitle" id="map-sub">Alle Behörden</div>
+    </div>
+    <button class="header-action" id="theme-btn-map" onclick="toggleTheme()" title="Theme wechseln">🌙</button>
+  </div>
+  <div id="map"></div>
+  <div class="map-fab-group">
+    <button class="map-fab primary" onclick="centerUser()" title="Mein Standort">📍</button>
+    <button class="map-fab" onclick="resetMap()" title="Übersicht">🇩🇪</button>
+    <button class="map-fab" onclick="openFilter()" title="Filter">⚙️</button>
+  </div>
+</div>
+
+<!-- ════════ SCREEN: FAVORITEN ════════ -->
+<div id="screen-fav" class="screen">
+  <div class="header">
+    <div class="header-logo">⭐</div>
+    <div style="flex:1">
+      <div class="header-title">Favoriten</div>
+      <div class="header-subtitle" id="fav-sub">0 gespeichert</div>
+    </div>
+  </div>
+  <div id="fav-list"></div>
+</div>
+
+<!-- ════════ BOTTOM NAV ════════ -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="nav-list" onclick="goScreen('list')">
+    <div class="nav-indicator"></div>
+    <span class="nav-ic">📋</span>
+    <span class="nav-lb">Liste</span>
+  </button>
+  <button class="nav-btn" id="nav-map" onclick="goScreen('map')">
+    <div class="nav-indicator"></div>
+    <span class="nav-ic">🗺️</span>
+    <span class="nav-lb">Karte</span>
+  </button>
+  <button class="nav-btn" id="nav-fav" onclick="goScreen('fav')">
+    <div class="nav-indicator"></div>
+    <span class="nav-ic">⭐</span>
+    <span class="nav-lb">Favoriten</span>
+  </button>
+</nav>
+
+<!-- ════════ FILTER MODAL ════════ -->
+<div class="modal-backdrop" id="filter-back" onclick="closeFilter()"></div>
+<div class="filter-modal" id="filter-modal">
+  <div class="modal-handle"></div>
+  <div class="modal-header">
+    <div class="modal-title">Filter</div>
+    <button class="modal-reset" onclick="resetFilter()">Zurücksetzen</button>
+  </div>
+  <div class="modal-scroll" id="filter-body"></div>
+  <button class="modal-apply" onclick="applyFilter()">Ergebnisse anzeigen</button>
+</div>
+
+<!-- ════════ DETAIL SHEET ════════ -->
+<div class="detail-backdrop" id="detail-back" onclick="closeDetail()"></div>
+<div class="detail-sheet" id="detail-sheet">
+  <div class="sheet-handle"></div>
+  <div class="sheet-body" id="detail-body"></div>
+</div>
+
+<!-- ════════ TOAST ════════ -->
+<div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+
+// ════════════════════════════════════════
+// CATEGORIES CONFIG
+// ════════════════════════════════════════
+const CATS = [
+  { id:'all',      label:'Alle',              icon:'🏛️',  color:'#4f7cff', osm:null },
+  { id:'amt',      label:'Ämter & Behörden',  icon:'🏢',  color:'#4f7cff',
+    osm:[
+      {k:'amenity',v:'townhall'},{k:'office',v:'government'},
+      {k:'office',v:'administrative'},{k:'amenity',v:'public_building'},
+      {k:'office',v:'tax'},{k:'office',v:'register'},
+      {k:'office',v:'employment_agency'},{k:'amenity',v:'immigration_office'},
+    ]
+  },
+  { id:'pol',      label:'Polizei & Ordnung',  icon:'👮',  color:'#ef4444',
+    osm:[{k:'amenity',v:'police'},{k:'office',v:'ranger'}]
+  },
+  { id:'feu',      label:'Feuerwehr & Notfall', icon:'🚒', color:'#dc2626',
+    osm:[{k:'amenity',v:'fire_station'},{k:'emergency',v:'ambulance_station'}]
+  },
+  { id:'med',      label:'Medizin & Gesundheit',icon:'🏥', color:'#22c55e',
+    osm:[
+      {k:'amenity',v:'hospital'},{k:'amenity',v:'clinic'},
+      {k:'amenity',v:'pharmacy'},{k:'amenity',v:'doctors'},
+      {k:'office',v:'healthcare'},
+    ]
+  },
+  { id:'edu',      label:'Bildung',             icon:'🎓', color:'#f59e0b',
+    osm:[
+      {k:'amenity',v:'university'},{k:'amenity',v:'college'},
+      {k:'amenity',v:'school'},{k:'amenity',v:'kindergarten'},
+      {k:'amenity',v:'library'},{k:'amenity',v:'community_centre'},
+    ]
+  },
+  { id:'kul',      label:'Kultur',              icon:'🎭', color:'#a855f7',
+    osm:[
+      {k:'amenity',v:'theatre'},{k:'tourism',v:'museum'},
+      {k:'amenity',v:'archive'},{k:'amenity',v:'music_school'},
+      {k:'amenity',v:'arts_centre'},
+    ]
+  },
+  { id:'ger',      label:'Gerichte & Recht',    icon:'⚖️', color:'#f97316',
+    osm:[{k:'amenity',v:'courthouse'},{k:'office',v:'lawyer'}]
+  },
+  { id:'soz',      label:'Soziales & Jobs',     icon:'🤝', color:'#ec4899',
+    osm:[
+      {k:'office',v:'social_welfare'},{k:'amenity',v:'social_facility'},
+      {k:'office',v:'job_centre'},
+    ]
+  },
+  { id:'pos',      label:'Post & Logistik',     icon:'📮', color:'#14b8a6',
+    osm:[{k:'amenity',v:'post_office'},{k:'amenity',v:'post_box'}]
+  },
+  { id:'ver',      label:'Verkehr & Transport',  icon:'🚉', color:'#64748b',
+    osm:[
+      {k:'public_transport',v:'station'},{k:'amenity',v:'bus_station'},
+      {k:'railway',v:'station'},
+    ]
+  },
+];
+
+const CAT_MAP = {};
+CATS.forEach(c => CAT_MAP[c.id] = c);
+
+// ════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════
+let activeCat = 'all';
+let filterCats = new Set(['all']);
+let searchQ = '';
+let userLat = null, userLng = null;
+let results = [];
+let favs = new Set(JSON.parse(localStorage.getItem('govfavs') || '[]'));
+let map = null, mapMarkers = L.layerGroup ? L.layerGroup() : null;
+let activeScreen = 'list';
+let searchTimer = null;
+let selectedPlace = null;
+let isLoading = false;
+let allResults = []; // full cache for current city — filter locally without re-fetching
+let lastCityLat = null, lastCityLng = null; // track if city changed
+
+// ════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    initTheme();
+  document.getElementById('splash').classList.add('hide');
+    setTimeout(() => document.getElementById('splash').remove(), 600);
+  }, 2200);
+
+  renderCatPills();
+  renderFilterModal();
+  showWelcome();
+  locateMe(true);
+});
+
+// ════════════════════════════════════════
+// GEOLOCATION
+// ════════════════════════════════════════
+// ════════════════════════════════════════
+// THEME
+// ════════════════════════════════════════
+function toggleTheme() {
+  const html = document.documentElement;
+  const isLight = html.getAttribute('data-theme') === 'light';
+  const next = isLight ? 'dark' : 'light';
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('govTheme', next);
+  updateThemeBtn(next);
+  // Update map tiles for light/dark
+  if (map) {
+    map.eachLayer(l => { if (l._url) map.removeLayer(l); });
+    const tileUrl = next === 'light'
+      ? 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png'
+      : 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+    L.tileLayer(tileUrl, { maxZoom:19 }).addTo(map);
+  }
+}
+
+function updateThemeBtn(theme) {
+  const icon = theme === 'light' ? '☀️' : '🌙';
+  document.querySelectorAll('#theme-btn, #theme-btn-map').forEach(b => { if(b) b.textContent = icon; });
+  const metaTheme = document.querySelector('meta[name="theme-color"]');
+  if (metaTheme) metaTheme.content = theme === 'light' ? '#f4f6fb' : '#0f1117';
+}
+
+function initTheme() {
+  const saved = localStorage.getItem('govTheme') || 'dark';
+  document.documentElement.setAttribute('data-theme', saved);
+  updateThemeBtn(saved);
+}
+
+function showWelcome() {
+  showLoading(false);
+  document.getElementById('list-body').innerHTML = `
+    <div class="state-wrap">
+      <div class="state-icon">🏛️</div>
+      <div class="state-title">Behörden finden</div>
+      <div class="state-sub">Gib einen Stadt- oder Behördennamen ein,<br>oder aktiviere deinen Standort.</div>
+      <button class="state-btn" onclick="locateMe()">📍 Standort verwenden</button>
+    </div>`;
+  document.getElementById('stat-count').style.display='none';
+  document.getElementById('stat-label').style.display='none';
+  document.getElementById('stat-loader').classList.remove('show');
+  // Focus search input
+  setTimeout(() => document.getElementById('q')?.focus(), 300);
+}
+
+function locateMe(silent=false) {
+  if (!navigator.geolocation) {
+    if (!silent) showToast('📍 Geolocation nicht verfügbar');
+    return;
+  }
+  showLoading(true);
+  navigator.geolocation.getCurrentPosition(pos => {
+    userLat = pos.coords.latitude;
+    userLng = pos.coords.longitude;
+    const bar = document.getElementById('loc-bar');
+    bar.classList.add('show');
+    document.getElementById('loc-text').textContent =
+      `📍 Standort aktiv · ${getCity(userLat, userLng)}`;
+    document.getElementById('hdr-sub').textContent = 'Behörden in deiner Nähe';
+    loadData();
+    if (map) addUserPin();
+    if (!silent) showToast('📍 Standort erkannt');
+  }, () => {
+    showLoading(false);
+    if (!silent) showToast('📍 Standort nicht verfügbar');
+  }, { timeout: 8000 });
+}
+
+function getCity(lat, lng) {
+  // Rough city detection
+  const cities = [
+    {name:'Berlin',lat:52.52,lng:13.40,r:0.5},
+    {name:'München',lat:48.14,lng:11.58,r:0.4},
+    {name:'Hamburg',lat:53.55,lng:10.00,r:0.4},
+    {name:'Frankfurt',lat:50.11,lng:8.68,r:0.3},
+    {name:'Köln',lat:50.94,lng:6.96,r:0.3},
+    {name:'Stuttgart',lat:48.78,lng:9.18,r:0.3},
+    {name:'Heilbronn',lat:49.14,lng:9.22,r:0.2},
+    {name:'Düsseldorf',lat:51.22,lng:6.77,r:0.3},
+    {name:'Nürnberg',lat:49.45,lng:11.08,r:0.3},
+    {name:'Leipzig',lat:51.34,lng:12.37,r:0.3},
+    {name:'Dresden',lat:51.05,lng:13.74,r:0.3},
+  ];
+  for (const c of cities) {
+    const d = Math.sqrt((lat-c.lat)**2+(lng-c.lng)**2);
+    if (d < c.r) return c.name;
+  }
+  return `${lat.toFixed(2)}°N ${lng.toFixed(2)}°E`;
+}
+
+// ════════════════════════════════════════
+// OSM DATA LOADING
+// ════════════════════════════════════════
+async function loadData(bbox=null) {
+  if (isLoading) return;
+
+  // If only category changed and we have cached results for this city → filter locally
+  if (!bbox && allResults.length > 0 && lastCityLat !== null) {
+    const catChanged = !(filterCats.has('all'));
+    if (catChanged) {
+      applyFilterAndRender(lastCityLat, lastCityLng);
+      return;
+    }
+  }
+
+  isLoading = true;
+  showLoading(true);
+
+  const OSM_CATS = {
+    amt: `nwr["office"="government"]({{B}});nwr["amenity"="townhall"]({{B}});nwr["office"="administrative"]({{B}});nwr["office"="tax"]({{B}});nwr["office"="register"]({{B}});nwr["office"="employment_agency"]({{B}});nwr["amenity"="immigration_office"]({{B}});`,
+    pol: `nwr["amenity"="police"]({{B}});`,
+    feu: `nwr["amenity"="fire_station"]({{B}});`,
+    med: `nwr["amenity"="hospital"]({{B}});nwr["amenity"="clinic"]({{B}});nwr["amenity"="pharmacy"]({{B}});nwr["amenity"="doctors"]({{B}});`,
+    edu: `nwr["amenity"="university"]({{B}});nwr["amenity"="college"]({{B}});nwr["amenity"="school"]({{B}});nwr["amenity"="kindergarten"]({{B}});nwr["amenity"="library"]({{B}});`,
+    kul: `nwr["amenity"="theatre"]({{B}});nwr["tourism"="museum"]({{B}});nwr["amenity"="arts_centre"]({{B}});`,
+    ger: `nwr["amenity"="courthouse"]({{B}});`,
+    soz: `nwr["office"="social_welfare"]({{B}});nwr["amenity"="social_facility"]({{B}});`,
+    pos: `nwr["amenity"="post_office"]({{B}});`,
+    ver: `nwr["railway"="station"]({{B}});nwr["amenity"="bus_station"]({{B}});`,
+    all: `nwr["office"="government"]({{B}});nwr["amenity"="townhall"]({{B}});nwr["office"="administrative"]({{B}});nwr["office"="tax"]({{B}});nwr["office"="employment_agency"]({{B}});nwr["amenity"="immigration_office"]({{B}});nwr["amenity"="police"]({{B}});nwr["amenity"="fire_station"]({{B}});nwr["amenity"="hospital"]({{B}});nwr["amenity"="clinic"]({{B}});nwr["amenity"="pharmacy"]({{B}});nwr["amenity"="doctors"]({{B}});nwr["amenity"="university"]({{B}});nwr["amenity"="college"]({{B}});nwr["amenity"="school"]({{B}});nwr["amenity"="kindergarten"]({{B}});nwr["amenity"="library"]({{B}});nwr["amenity"="courthouse"]({{B}});nwr["amenity"="post_office"]({{B}});nwr["railway"="station"]({{B}});nwr["amenity"="bus_station"]({{B}});nwr["amenity"="theatre"]({{B}});nwr["tourism"="museum"]({{B}});nwr["amenity"="arts_centre"]({{B}});nwr["office"="social_welfare"]({{B}});nwr["amenity"="social_facility"]({{B}});`,
+  };
+
+  // Step 1: Geocode via Nominatim
+  let lat = userLat, lng = userLng;
+  if (searchQ.length >= 2 && !bbox) {
+    try {
+      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ + ', Deutschland')}&format=json&limit=5&addressdetails=1`;
+      const gr = await fetch(geoUrl, {
+        signal: AbortSignal.timeout(8000),
+        headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' }
+      });
+      const gd = await gr.json();
+      if (gd.length > 0) {
+        // Prefer city/town/municipality over villages or streets
+        const best = gd.find(r => ['city','town','municipality','administrative'].includes(r.type) || r.class === 'boundary')
+                  || gd[0];
+        lat = parseFloat(best.lat);
+        lng = parseFloat(best.lon);
+        const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
+        document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
+        if (map) {
+          map.flyTo([lat, lng], 13, { duration: 1.2 });
+          document.getElementById('map-sub').textContent = `Behörden in ${city}`;
+        }
+      } else {
+        throw new Error('Nicht gefunden');
+      }
+    } catch(e) {
+      console.warn('Geocode failed:', e.message);
+      showLoading(false);
+      document.getElementById('list-body').innerHTML = `
+        <div class="state-wrap">
+          <div class="state-icon">🔍</div>
+          <div class="state-title">Stadt nicht gefunden</div>
+          <div class="state-sub">"${searchQ}" wurde nicht gefunden.</div>
+          <button class="state-btn" onclick="loadData()">🔄 Erneut versuchen</button>
+        </div>`;
+      isLoading = false; return;
+    }
+  }
+
+  if (!lat || !lng) {
+    showLoading(false);
+    document.getElementById('list-body').innerHTML = `
+      <div class="state-wrap">
+        <div class="state-icon">📍</div>
+        <div class="state-title">Kein Standort</div>
+        <div class="state-sub">Bitte Stadt eingeben (z.B. "Heilbronn") oder Standort erlauben.</div>
+        <button class="state-btn" onclick="locateMe()">📍 Standort verwenden</button>
+      </div>`;
+    isLoading = false; return;
+  }
+
+  // Step 2: Overpass bbox
+  const R = 0.12;
+  const useLat = bbox ? (bbox.n + bbox.s) / 2 : lat;
+  const useLng = bbox ? (bbox.e + bbox.w) / 2 : lng;
+  const south = useLat - R, north = useLat + R;
+  const west  = useLng - R / Math.cos(useLat * Math.PI / 180);
+  const east  = useLng + R / Math.cos(useLat * Math.PI / 180);
+  const bboxStr = `${south},${west},${north},${east}`;
+
+  // Split into 2 smaller queries to avoid Overpass timeout
+  const Q1 = `nwr["office"="government"]({{B}});nwr["amenity"="townhall"]({{B}});nwr["office"="administrative"]({{B}});nwr["office"="tax"]({{B}});nwr["office"="employment_agency"]({{B}});nwr["amenity"="immigration_office"]({{B}});nwr["amenity"="police"]({{B}});nwr["amenity"="fire_station"]({{B}});nwr["amenity"="courthouse"]({{B}});nwr["amenity"="post_office"]({{B}});nwr["office"="social_welfare"]({{B}});nwr["amenity"="social_facility"]({{B}});`.replaceAll('{{B}}', bboxStr);
+  const Q2 = `nwr["amenity"="hospital"]({{B}});nwr["amenity"="clinic"]({{B}});nwr["amenity"="pharmacy"]({{B}});nwr["amenity"="doctors"]({{B}});nwr["amenity"="university"]({{B}});nwr["amenity"="college"]({{B}});nwr["amenity"="school"]({{B}});nwr["amenity"="kindergarten"]({{B}});nwr["amenity"="library"]({{B}});nwr["railway"="station"]({{B}});nwr["amenity"="bus_station"]({{B}});nwr["amenity"="theatre"]({{B}});nwr["tourism"="museum"]({{B}});nwr["amenity"="arts_centre"]({{B}});`.replaceAll('{{B}}', bboxStr);
+
+  const makeQuery = (body) => `[out:json][timeout:25];\n(\n${body}\n);\nout center 300;`;
+
+  const EP = 'https://overpass-api.de/api/interpreter';
+
+  async function fetchOverpass(queryBody) {
+    const resp = await fetch(EP, {
+      method: 'POST',
+      body: 'data=' + encodeURIComponent(makeQuery(queryBody)),
+      signal: AbortSignal.timeout(28000),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    return resp.json();
+  }
+
+  try {
+    // Sequential requests to respect Overpass rate limit (2 slots)
+    let elements = [];
+    for (const [i, q] of [[1,Q1],[2,Q2]]) {
+      try {
+        if (i === 2) await new Promise(r => setTimeout(r, 500));
+        const d = await fetchOverpass(q);
+        elements = elements.concat(d.elements || []);
+        console.log(`✅ Q${i}: ${d.elements?.length} elements`);
+      } catch(e) {
+        console.warn(`Q${i} failed:`, e.message);
+      }
+    }
+
+    console.log(`✅ Overpass total: ${elements.length} elements`);
+    if (elements.length === 0) throw new Error('No results from Overpass');
+
+    // Cache full results
+    allResults = parseOSM(elements, lat, lng);
+    lastCityLat = lat; lastCityLng = lng;
+
+    applyFilterAndRender(lat, lng);
+    showLoading(false);
+  } catch(e) {
+    console.error('Overpass error:', e);
+    showLoading(false);
+    showError();
+  } finally {
+    isLoading = false;
+  }
+}
+
+function applyFilterAndRender(lat, lng) {
+  const cat = filterCats.has('all') ? 'all' : [...filterCats][0] || 'all';
+
+  if (cat === 'all') {
+    results = [...allResults];
+  } else {
+    results = allResults.filter(p => p.cat === cat);
+  }
+
+  if (lat) results.sort((a,b) => dist(lat,lng,a.lat,a.lng) - dist(lat,lng,b.lat,b.lng));
+
+  renderList();
+  if (map) {
+    updateMapMarkers();
+    if (lastCityLat && lastCityLat !== userLat) {
+      map.flyTo([lastCityLat, lastCityLng], 13, { duration: 1 });
+    }
+  }
+}
+
+function parseOSM(elements, refLat, refLng) {
+  const TYPE_MAP = {
+    townhall:'Rathaus', police:'Polizei', fire_station:'Feuerwehr',
+    hospital:'Krankenhaus', clinic:'Klinik', pharmacy:'Apotheke', doctors:'Arztpraxis',
+    university:'Universität', college:'Hochschule', school:'Schule',
+    kindergarten:'Kindergarten', library:'Bibliothek',
+    courthouse:'Gericht', theatre:'Theater', post_office:'Postamt',
+    station:'Bahnhof', bus_station:'Busbahnhof',
+    social_facility:'Sozialeinrichtung', museum:'Museum', arts_centre:'Kulturzentrum',
+  };
+  const CAT_DETECT = {
+    pol:['police'], feu:['fire_station'],
+    med:['hospital','clinic','pharmacy','doctors','dentist'],
+    edu:['university','college','school','kindergarten','library'],
+    kul:['theatre','museum','arts_centre'],
+    ger:['courthouse'],
+    soz:['social_facility','social_welfare'],
+    pos:['post_office'],
+    ver:['station','bus_station'],
+  };
+
+  const seen = new Set();
+  const out = [];
+  for (const el of elements) {
+    const t = el.tags || {};
+    const name = t.name || t['name:de'];
+    if (!name) continue;
+    const uid = `${el.type}_${el.id}`;
+    if (seen.has(uid)) continue;
+    seen.add(uid);
+
+    let elat, elng;
+    if (el.type === 'node') { elat = el.lat; elng = el.lon; }
+    else if (el.center) { elat = el.center.lat; elng = el.center.lon; }
+    if (!elat || !elng) continue;
+
+    const amenity = t.amenity || '', office = t.office || '';
+    const railway = t.railway || '', tourism = t.tourism || '';
+    const typeKey = amenity || office || railway || tourism || 'government';
+    const typeLabel = TYPE_MAP[typeKey] || (office ? 'Behörde' : 'Öffentliche Einrichtung');
+
+    let cat = 'amt';
+    for (const [cid, keys] of Object.entries(CAT_DETECT)) {
+      if (keys.includes(typeKey)) { cat = cid; break; }
+    }
+
+    const city = t['addr:city'] || t['addr:town'] || t['addr:suburb'] || '';
+    const addr = [t['addr:street'], t['addr:housenumber'], t['addr:postcode'], city]
+      .filter(Boolean).join(' ') || '';
+
+    out.push({
+      id: uid, name, type: typeLabel, cat,
+      lat: elat, lng: elng, addr, city,
+      phone: t.phone || t['contact:phone'] || '',
+      web: t.website || t['contact:website'] || '',
+      email: t.email || t['contact:email'] || '',
+      oh: t.opening_hours || '',
+    });
+  }
+  return out;
+}
+
+function dist(lat1,lng1,lat2,lng2) {
+  if (!lat2||!lng2) return 99999;
+  const R=6371, dLat=(lat2-lat1)*Math.PI/180, dLng=(lng2-lng1)*Math.PI/180;
+  const a=Math.sin(dLat/2)**2+Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R*2*Math.atan2(Math.sqrt(a),Math.sqrt(1-a));
+}
+function fmtDist(km) {
+  return km<1 ? `${Math.round(km*1000)} m` : `${km.toFixed(1)} km`;
+}
+
+// ════════════════════════════════════════
+// RENDER LIST
+// ════════════════════════════════════════
+function renderList() {
+  const body = document.getElementById('list-body');
+  const cnt = document.getElementById('stat-count');
+  const lbl = document.getElementById('stat-label');
+  cnt.style.display = 'inline';
+  lbl.style.display = 'inline';
+
+  if (!results.length) {
+    cnt.textContent = '0';
+    lbl.textContent = ' Ergebnisse';
+    body.innerHTML = `
+      <div class="state-wrap">
+        <div class="state-icon">🔍</div>
+        <div class="state-title">Keine Ergebnisse</div>
+        <div class="state-sub">Versuche eine andere Suche oder erweitere den Bereich.</div>
+        <button class="state-btn" onclick="resetFilter()">Filter zurücksetzen</button>
+      </div>`;
+    return;
+  }
+
+  cnt.textContent = results.length > 199 ? '200+' : results.length;
+  lbl.textContent = ` Einrichtungen gefunden`;
+
+  // Group by city
+  const grouped = {};
+  results.forEach(p => {
+    const key = p.city || 'Unbekannt';
+    if (!grouped[key]) grouped[key] = [];
+    grouped[key].push(p);
+  });
+
+  body.innerHTML = Object.entries(grouped).map(([city, places]) => `
+    <div class="city-group">
+      <div class="city-label">${city} <span style="color:var(--text3);font-weight:400;text-transform:none;letter-spacing:0;font-size:12px">${places.length}</span></div>
+      ${places.map(p => cardHTML(p)).join('')}
+    </div>`).join('');
+}
+
+function cardHTML(p) {
+  const cat = CAT_MAP[p.cat] || CAT_MAP['amt'];
+  const d = userLat ? dist(userLat,userLng,p.lat,p.lng) : null;
+  const isFav = favs.has(p.id);
+  const isOpen = getOpenStatus(p.oh);
+  // Cache place for click handler
+  window._places = window._places || {};
+  window._places[String(p.id)] = p;
+  const safeId = String(p.id).replace(/'/g, '');
+  return `
+    <div class="place-card" onclick="openDetailById('${safeId}')"
+      style="--card-color:${cat.color}">
+      <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:${cat.color};border-radius:4px 0 0 4px"></div>
+      <div class="place-icon-wrap" style="background:${cat.color}22">${cat.icon}</div>
+      <div class="place-body">
+        <div class="place-name">${p.name}</div>
+        <div class="place-type" style="color:${cat.color}">${p.type}</div>
+        <div class="place-addr">📍 ${p.addr || '–'}</div>
+        <div class="place-footer">
+          ${isOpen===true ? '<span class="badge-open">● Geöffnet</span>' : isOpen===false ? '<span class="badge-closed">● Geschlossen</span>' : ''}
+          ${d!==null ? `<span class="badge-dist">📏 ${fmtDist(d)}</span>` : ''}
+          ${isFav ? '<span class="badge-fav">⭐</span>' : ''}
+        </div>
+      </div>
+      <span class="place-arrow">›</span>
+    </div>`;
+}
+
+function looksLikeCity(q) {
+  const institutionWords = ['amt','büro','polizei','schule','klinik','krankenhaus','gericht','bibliothek','theater','museum','post','bahnhof','finanz','bürger'];
+  return !institutionWords.some(w => q.toLowerCase().includes(w));
+}
+
+function getOpenStatus(oh) {
+  if (!oh) return null;
+  if (oh === '24/7') return true;
+  // Simple check: if today's day is mentioned with open hours
+  const days = ['Su','Mo','Tu','We','Th','Fr','Sa'];
+  const now = new Date();
+  const dayAbbr = days[now.getDay()];
+  if (oh.includes(dayAbbr) || oh.includes('Mo-Fr')) {
+    const hour = now.getHours();
+    return hour >= 8 && hour < 17;
+  }
+  return null;
+}
+
+// ════════════════════════════════════════
+// SEARCH & FILTER
+// ════════════════════════════════════════
+function onQ(val) {
+  searchQ = val.trim();
+  document.getElementById('qx').classList.toggle('vis', val.length>0);
+  clearTimeout(searchTimer);
+  if (searchQ.length === 0) { showWelcome(); return; }
+  if (searchQ.length < 2) return;
+  searchTimer = setTimeout(() => loadData(), 600);
+}
+function clearQ() {
+  document.getElementById('q').value='';
+  onQ('');
+}
+function searchNearby() {
+  clearQ();
+  filterCats = new Set(['all']);
+  renderCatPills();
+  loadData();
+}
+
+function renderCatPills() {
+  document.getElementById('cat-pills').innerHTML = CATS.map(c => `
+    <button class="cat-pill ${activeCat===c.id?'active':''}"
+      onclick="setCat('${c.id}')"
+      style="${activeCat===c.id?`background:${c.color};border-color:${c.color}`:''}">
+      <span class="cat-pill-dot" style="background:${c.color}"></span>
+      ${c.label}
+    </button>`).join('') + '<div style="width:8px;flex-shrink:0"></div>';
+}
+
+function setCat(id) {
+  activeCat = id;
+  filterCats = new Set([id]);
+  renderCatPills();
+  if (allResults.length > 0 && lastCityLat !== null) {
+    applyFilterAndRender(lastCityLat, lastCityLng);
+  } else if (userLat || searchQ.length >= 3) {
+    loadData();
+  }
+}
+
+function renderFilterModal() {
+  const cats = CATS.filter(c=>c.id!=='all');
+  document.getElementById('filter-body').innerHTML = `
+    <div class="modal-section-title">Kategorien</div>
+    <div class="filter-grid">
+      ${cats.map(c=>`
+        <div class="filter-tile ${filterCats.has(c.id)||filterCats.has('all')?'active':''}"
+          id="ft-${c.id}" onclick="toggleFilterCat('${c.id}')">
+          <div class="filter-tile-icon" style="background:${c.color}22">${c.icon}</div>
+          <div>
+            <div class="filter-tile-label">${c.label}</div>
+          </div>
+        </div>`).join('')}
+    </div>`;
+}
+
+function toggleFilterCat(id) {
+  filterCats.delete('all');
+  if (filterCats.has(id)) {
+    filterCats.delete(id);
+    if (filterCats.size===0) filterCats.add('all');
+  } else {
+    filterCats.add(id);
+  }
+  document.querySelectorAll('.filter-tile').forEach(t => t.classList.remove('active'));
+  filterCats.forEach(id => {
+    const el = document.getElementById(`ft-${id}`);
+    if (el) el.classList.add('active');
+  });
+}
+
+function openFilter() {
+  renderFilterModal();
+  document.getElementById('filter-back').classList.add('open');
+  document.getElementById('filter-modal').classList.add('open');
+}
+function closeFilter() {
+  document.getElementById('filter-back').classList.remove('open');
+  document.getElementById('filter-modal').classList.remove('open');
+}
+function resetFilter() {
+  filterCats = new Set(['all']);
+  activeCat = 'all';
+  renderCatPills();
+  renderFilterModal();
+  if (allResults.length > 0 && lastCityLat !== null) {
+    applyFilterAndRender(lastCityLat, lastCityLng);
+  }
+}
+function applyFilter() {
+  closeFilter();
+  if (!filterCats.has('all')) {
+    activeCat = [...filterCats][0] || 'all';
+  }
+  renderCatPills();
+  if (allResults.length > 0 && lastCityLat !== null) {
+    applyFilterAndRender(lastCityLat, lastCityLng);
+  } else if (userLat || searchQ.length >= 3) {
+    loadData();
+  }
+}
+
+// ════════════════════════════════════════
+// DETAIL
+// ════════════════════════════════════════
+function openDetailById(id) {
+  // Try global place cache first, then results array
+  let p = (window._places || {})[id];
+  if (!p) p = results.find(r => r.id === id || String(r.id) === String(id));
+  if (!p) {
+    console.warn('Place not found:', id, 'results:', results.length);
+    showToast('⚠️ Daten nicht verfügbar');
+    return;
+  }
+  openDetail(p);
+}
+
+function openDetail(p) {
+  selectedPlace = p;
+  const cat = CAT_MAP[p.cat] || CAT_MAP['amt'];
+  const isFav = favs.has(p.id);
+  const d = userLat ? dist(userLat,userLng,p.lat,p.lng) : null;
+
+  const mapsUrl = userLat
+    ? `https://www.google.com/maps/dir/?api=1&origin=${userLat},${userLng}&destination=${p.lat},${p.lng}&travelmode=driving`
+    : `https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}&travelmode=driving`;
+
+  document.getElementById('detail-body').innerHTML = `
+    <div class="detail-hero">
+      <div class="detail-icon" style="background:${cat.color}22">${cat.icon}</div>
+      <div style="flex:1;min-width:0">
+        <div class="detail-name">${p.name}</div>
+        <div class="detail-type" style="color:${cat.color}">${p.type}</div>
+        <div class="detail-city">${p.city || ''}${d!==null?` · 📏 ${fmtDist(d)}`:''}</div>
+      </div>
+    </div>
+
+    <div class="action-bar">
+      <button class="action-tile" onclick="window.open('${mapsUrl}','_blank')">
+        <span class="action-tile-icon">🗺️</span>
+        <span class="action-tile-label">Route</span>
+      </button>
+      <button class="action-tile" onclick="${p.phone?`window.location.href='tel:${p.phone}'`:'showToast(\"📞 Keine Telefonnummer\")'} ">
+        <span class="action-tile-icon">📞</span>
+        <span class="action-tile-label">Anrufen</span>
+      </button>
+      <button class="action-tile" onclick="${p.web?`window.open('${p.web}','_blank')`:'showToast(\"🌐 Keine Website\")'} ">
+        <span class="action-tile-icon">🌐</span>
+        <span class="action-tile-label">Website</span>
+      </button>
+      <button class="action-tile" onclick="toggleFav('${p.id}')" id="fav-tile-${p.id.replace(/[^a-z0-9]/gi,'_')}">
+        <span class="action-tile-icon">${isFav?'⭐':'☆'}</span>
+        <span class="action-tile-label">${isFav?'Gespeichert':'Speichern'}</span>
+      </button>
+    </div>
+
+    <div class="info-block">
+      ${p.addr ? `
+      <div class="info-row">
+        <div class="info-icon">📍</div>
+        <div class="info-content">
+          <div class="info-label">Adresse</div>
+          <div class="info-val">${p.addr}</div>
+        </div>
+      </div>` : ''}
+
+      ${p.phone ? `
+      <div class="info-row">
+        <div class="info-icon">📞</div>
+        <div class="info-content">
+          <div class="info-label">Telefon</div>
+          <div class="info-val"><a class="info-link" href="tel:${p.phone}">${p.phone}</a></div>
+        </div>
+      </div>` : ''}
+
+      ${p.email ? `
+      <div class="info-row">
+        <div class="info-icon">✉️</div>
+        <div class="info-content">
+          <div class="info-label">E-Mail</div>
+          <div class="info-val"><a class="info-link" href="mailto:${p.email}">${p.email}</a></div>
+        </div>
+      </div>` : ''}
+
+      ${p.web ? `
+      <div class="info-row">
+        <div class="info-icon">🌐</div>
+        <div class="info-content">
+          <div class="info-label">Website</div>
+          <div class="info-val"><a class="info-link" href="${p.web}" target="_blank">${p.web.replace(/^https?:\/\//,'').substring(0,40)}</a></div>
+        </div>
+      </div>` : ''}
+
+      ${p.oh ? `
+      <div class="info-row">
+        <div class="info-icon">🕐</div>
+        <div class="info-content">
+          <div class="info-label">Öffnungszeiten</div>
+          <div class="info-val" style="font-size:13px;line-height:1.6">${p.oh}</div>
+        </div>
+      </div>` : ''}
+
+      <div class="info-row">
+        <div class="info-icon">🗺️</div>
+        <div class="info-content">
+          <div class="info-label">Auf Karte anzeigen</div>
+          <div class="info-val"><a class="info-link" href="https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}" target="_blank">In Google Maps öffnen</a></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reviews-wrap">
+      <div class="reviews-title">Bewertungen</div>
+      <div id="reviews-${p.id}">
+        ${(JSON.parse(localStorage.getItem('rev_'+p.id)||'[]')).map(r=>`
+          <div class="review-item">
+            <div class="review-top">
+              <div class="rev-av">${r.name[0]}</div>
+              <div>
+                <div class="rev-name">${r.name}</div>
+                <div class="rev-stars">${'★'.repeat(r.stars)}${'☆'.repeat(5-r.stars)}</div>
+              </div>
+            </div>
+            <div class="rev-text">${r.text}</div>
+          </div>`).join('') || '<div style="color:var(--text3);font-size:13px;padding:4px 0 12px">Noch keine Bewertungen.</div>'}
+      </div>
+      <button class="add-review-btn" onclick="addReview('${p.id.replace(/'/g,'')}')">+ Bewertung hinzufügen</button>
+    </div>
+  `;
+
+  document.getElementById('detail-back').classList.add('open');
+  document.getElementById('detail-sheet').classList.add('open');
+}
+
+function closeDetail() {
+  document.getElementById('detail-back').classList.remove('open');
+  document.getElementById('detail-sheet').classList.remove('open');
+}
+
+function toggleFav(id) {
+  if (favs.has(id)) { favs.delete(id); showToast('☆ Aus Favoriten entfernt'); }
+  else { favs.add(id); showToast('⭐ Zu Favoriten hinzugefügt'); }
+  localStorage.setItem('govfavs', JSON.stringify([...favs]));
+  const safeId = id.replace(/[^a-z0-9]/gi,'_');
+  const tile = document.getElementById(`fav-tile-${safeId}`);
+  if (tile) {
+    tile.querySelector('.action-tile-icon').textContent = favs.has(id)?'⭐':'☆';
+    tile.querySelector('.action-tile-label').textContent = favs.has(id)?'Gespeichert':'Speichern';
+  }
+  if (activeScreen==='fav') renderFavs();
+}
+
+function addReview(id) {
+  const name = prompt('Dein Name:');
+  if (!name) return;
+  const stars = parseInt(prompt('Bewertung (1-5):') || '5');
+  const text = prompt('Kommentar:');
+  if (!text) return;
+  const revs = JSON.parse(localStorage.getItem('rev_'+id)||'[]');
+  revs.push({name, stars:Math.min(5,Math.max(1,stars)), text, date:new Date().toLocaleDateString('de')});
+  localStorage.setItem('rev_'+id, JSON.stringify(revs));
+  closeDetail();
+  openDetail(id);
+}
+
+// ════════════════════════════════════════
+// MAP
+// ════════════════════════════════════════
+function initMap() {
+  if (map) return;
+  map = L.map('map', { zoomControl:false, attributionControl:false })
+    .setView([51.17, 10.45], 6);
+
+  const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+  L.tileLayer(isDark
+    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+    : 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+    maxZoom:19
+  }).addTo(map);
+
+  L.control.attribution({ position:'bottomleft', prefix:false })
+    .addAttribution('© <a href="https://openstreetmap.org">OSM</a>')
+    .addTo(map);
+
+  L.control.zoom({ position:'bottomright' }).addTo(map);
+
+  mapMarkers = L.layerGroup().addTo(map);
+
+  map.on('moveend', () => {
+    const b = map.getBounds();
+    const sw = b.getSouthWest(), ne = b.getNorthEast();
+    const spread = Math.max(ne.lat-sw.lat, ne.lng-sw.lng);
+    if (spread < 0.5) { // only load when zoomed in enough
+      loadData({s:sw.lat,w:sw.lng,n:ne.lat,e:ne.lng});
+    }
+  });
+
+  if (userLat) addUserPin();
+  updateMapMarkers();
+}
+
+function updateMapMarkers() {
+  if (!map || !mapMarkers) return;
+  mapMarkers.clearLayers();
+
+  results.forEach(p => {
+    const cat = CAT_MAP[p.cat] || CAT_MAP['amt'];
+    const icon = L.divIcon({
+      html:`<div style="
+        width:36px;height:36px;border-radius:50%;
+        background:${cat.color};
+        border:2.5px solid #0f1117;
+        display:flex;align-items:center;justify-content:center;
+        font-size:15px;
+        box-shadow:0 3px 12px rgba(0,0,0,0.5);
+        cursor:pointer;
+      ">${cat.icon}</div>`,
+      className:'', iconSize:[36,36], iconAnchor:[18,18]
+    });
+
+    const mk = L.marker([p.lat,p.lng],{icon}).addTo(mapMarkers);
+    mk.bindPopup(`
+      <div class="popup-body">
+        <div class="popup-name">${p.name}</div>
+        <div class="popup-type" style="color:${cat.color}">${p.type}</div>
+        <div class="popup-addr">📍 ${p.addr||'–'}</div>
+        <div class="popup-actions">
+          <button class="popup-btn-route" style="flex:1" onclick="window.open(userLat ? \`https://www.google.com/maps/dir/?api=1&origin=\${userLat},\${userLng}&destination=${p.lat},${p.lng}&travelmode=driving\` : \`https://www.google.com/maps/dir/?api=1&destination=${p.lat},${p.lng}\`,'_blank')">🗺️ Route anzeigen</button>
+        </div>
+      </div>`, {maxWidth:260, closeButton:false});
+  });
+
+  document.getElementById('map-sub').textContent =
+    `${results.length} Einrichtungen`;
+}
+
+let userPin = null;
+function addUserPin() {
+  if (!map||!userLat) return;
+  if (userPin) map.removeLayer(userPin);
+  const icon = L.divIcon({
+    html:`<div style="width:16px;height:16px;border-radius:50%;background:#4f7cff;border:3px solid white;box-shadow:0 0 0 5px rgba(79,124,255,0.3)"></div>`,
+    className:'', iconSize:[16,16], iconAnchor:[8,8]
+  });
+  userPin = L.marker([userLat,userLng],{icon}).addTo(map);
+}
+
+function centerUser() {
+  if (!userLat) { locateMe(); return; }
+  map.flyTo([userLat,userLng],14,{duration:1.4});
+}
+function resetMap() {
+  map.flyTo([51.17,10.45],6,{duration:1.4});
+}
+
+// ════════════════════════════════════════
+// FAVORITES
+// ════════════════════════════════════════
+function renderFavs() {
+  const all = results.filter(p=>favs.has(p.id));
+  const stored = JSON.parse(localStorage.getItem('govfavs_cache')||'[]');
+  const combined = [...new Map([...stored,...all].map(p=>[p.id,p])).values()];
+
+  document.getElementById('fav-sub').textContent = `${combined.length} gespeichert`;
+  const el = document.getElementById('fav-list');
+
+  if (!combined.length) {
+    el.innerHTML=`<div class="state-wrap">
+      <div class="state-icon">⭐</div>
+      <div class="state-title">Noch keine Favoriten</div>
+      <div class="state-sub">Tippe bei einer Behörde auf Speichern.</div>
+    </div>`;
+    return;
+  }
+  el.innerHTML = `<div style="padding:4px 16px 0">
+    <div style="padding:14px 0 8px;font-size:11px;font-weight:700;color:var(--text3);letter-spacing:1.5px;text-transform:uppercase">Gespeicherte Orte · ${combined.length}</div>
+    ${combined.map(p=>cardHTML(p)).join('')}
+    <div style="height:calc(var(--nav-h) + 20px)"></div>
+  </div>`;
+}
+
+// ════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════
+function goScreen(name) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById(`screen-${name}`).classList.add('active');
+  document.getElementById(`nav-${name}`).classList.add('active');
+  activeScreen = name;
+
+  if (name==='map') setTimeout(()=>{
+    initMap();
+    map.invalidateSize();
+    if (results.length > 0) {
+      updateMapMarkers();
+      if (lastCityLat) map.flyTo([lastCityLat, lastCityLng], 13, {duration:1});
+    } else if (allResults.length === 0 && (userLat || searchQ.length >= 2)) {
+      loadData();
+    }
+  }, 60);
+  if (name==='fav') renderFavs();
+}
+
+// ════════════════════════════════════════
+// UI HELPERS
+// ════════════════════════════════════════
+function showLoading(on) {
+  document.getElementById('stat-loader').classList.toggle('show', on);
+  document.getElementById('stat-count').style.display = on?'none':'inline';
+  document.getElementById('stat-label').style.display = on?'none':'inline';
+
+  if (on) {
+    document.getElementById('list-body').innerHTML = [1,2,3,4,5].map(()=>`
+      <div class="skeleton-card">
+        <div class="skel skel-icon"></div>
+        <div class="skel-body">
+          <div class="skel skel-line" style="width:70%"></div>
+          <div class="skel skel-line skel-short"></div>
+          <div class="skel skel-line" style="width:85%"></div>
+        </div>
+      </div>`).join('');
+  }
+}
+
+function showError() {
+  document.getElementById('list-body').innerHTML=`
+    <div class="state-wrap">
+      <div class="state-icon">⚠️</div>
+      <div class="state-title">Verbindungsfehler</div>
+      <div class="state-sub">Konnte keine Daten laden. Bitte Internetverbindung prüfen.</div>
+      <button class="state-btn" onclick="loadData()">Erneut versuchen</button>
+    </div>`;
+  showLoading(false);
+}
+
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>t.classList.remove('show'), 2500);
+}
+</script>
+</body>
+</html>

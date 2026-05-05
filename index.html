@@ -1041,9 +1041,14 @@ function getCity(lat, lng) {
 async function loadData(bbox=null) {
   if (isLoading) return;
 
-  // loadData is only called for new city searches or GPS
-  // Category switches go directly to applyFilterAndRender via setCat/applyFilter
+  // Always clear cache when loadData is triggered by search
+  // (category switches never reach here — they go via setCat → applyFilterAndRender)
   const currentQ = searchQ.trim().toLowerCase();
+  if (!bbox) {
+    // Reset everything before loading new data
+    allResults = [];
+    results = [];
+  }
 
   isLoading = true;
   showLoading(true);
@@ -1079,20 +1084,8 @@ async function loadData(bbox=null) {
         lat = parseFloat(best.lat);
         lng = parseFloat(best.lon);
         const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
-        // Same city as cache (within ~5km) → skip Overpass, just re-render
-        const sameCity = allResults.length > 0 && lastCityLat !== null &&
-            Math.abs(lat - lastCityLat) < 0.05 && Math.abs(lng - lastCityLng) < 0.05;
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) document.getElementById('map-sub').textContent = `Behörden in ${city}`;
-        if (sameCity) {
-          lastSearchQ = currentQ;
-          applyFilterAndRender(lat, lng);
-          showLoading(false);
-          isLoading = false;
-          return;
-        }
-        // Different city → clear cache
-        allResults = []; results = [];
 
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) {

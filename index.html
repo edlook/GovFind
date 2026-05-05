@@ -1041,12 +1041,9 @@ function getCity(lat, lng) {
 async function loadData(bbox=null) {
   if (isLoading) return;
 
-  // Category switch with valid cache → filter locally, no fetch
+  // loadData is only called for new city searches or GPS
+  // Category switches go directly to applyFilterAndRender via setCat/applyFilter
   const currentQ = searchQ.trim().toLowerCase();
-  if (!bbox && allResults.length > 0 && lastCityLat !== null && currentQ === lastSearchQ) {
-    applyFilterAndRender(lastCityLat, lastCityLng);
-    return;
-  }
 
   isLoading = true;
   showLoading(true);
@@ -1082,16 +1079,20 @@ async function loadData(bbox=null) {
         lat = parseFloat(best.lat);
         lng = parseFloat(best.lon);
         const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
-        // If geocoded same city as cached → skip Overpass, just re-render
-        if (allResults.length > 0 && lastCityLat !== null &&
-            Math.abs(lat - lastCityLat) < 0.05 && Math.abs(lng - lastCityLng) < 0.05) {
+        // Same city as cache (within ~5km) → skip Overpass, just re-render
+        const sameCity = allResults.length > 0 && lastCityLat !== null &&
+            Math.abs(lat - lastCityLat) < 0.05 && Math.abs(lng - lastCityLng) < 0.05;
+        document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
+        if (map) document.getElementById('map-sub').textContent = `Behörden in ${city}`;
+        if (sameCity) {
           lastSearchQ = currentQ;
-          document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
           applyFilterAndRender(lat, lng);
           showLoading(false);
           isLoading = false;
           return;
         }
+        // Different city → clear cache
+        allResults = []; results = [];
 
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) {
@@ -1114,9 +1115,6 @@ async function loadData(bbox=null) {
       isLoading = false; return;
     }
   }
-
-  // Use lastCityLat as fallback if geocode didn't run (e.g. short query or GPS mode)
-  if (!lat && lastCityLat) { lat = lastCityLat; lng = lastCityLng; }
 
   if (!lat || !lng) {
     showLoading(false);

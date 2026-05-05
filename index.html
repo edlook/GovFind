@@ -1038,18 +1038,18 @@ function getCity(lat, lng) {
 // ════════════════════════════════════════
 // OSM DATA LOADING
 // ════════════════════════════════════════
-async function loadData(bbox=null) {
+async function loadData() {
   if (isLoading) return;
 
   const currentQ = searchQ.trim().toLowerCase();
 
-  // If cache valid for this query → just filter and render, no fetch
-  if (!bbox && allResults.length > 0 && lastCityLat !== null && currentQ === lastSearchQ) {
+  // Cache hit → filter locally, no fetch
+  if (allResults.length > 0 && lastCityLat !== null && currentQ === lastSearchQ) {
     applyFilterAndRender(lastCityLat, lastCityLng);
     return;
   }
 
-  // New query → clear stale cache
+  // New city → clear stale cache
   if (currentQ !== lastSearchQ) {
     allResults = [];
     results = [];
@@ -1076,7 +1076,7 @@ async function loadData(bbox=null) {
 
   // Step 1: Geocode via Nominatim
   let lat = userLat, lng = userLng;
-  if (searchQ.length >= 2 && !bbox) {
+  if (searchQ.length >= 2) {
     try {
       const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ + ', Deutschland')}&format=json&limit=5&addressdetails=1`;
       const gr = await fetch(geoUrl, {
@@ -1130,8 +1130,8 @@ async function loadData(bbox=null) {
 
   // Step 2: Overpass bbox
   const R = 0.12;
-  const useLat = bbox ? (bbox.n + bbox.s) / 2 : lat;
-  const useLng = bbox ? (bbox.e + bbox.w) / 2 : lng;
+  const useLat = lat;
+  const useLng = lng;
   const south = useLat - R, north = useLat + R;
   const west  = useLng - R / Math.cos(useLat * Math.PI / 180);
   const east  = useLng + R / Math.cos(useLat * Math.PI / 180);
@@ -1664,14 +1664,7 @@ function initMap() {
 
   mapMarkers = L.layerGroup().addTo(map);
 
-  map.on('moveend', () => {
-    const b = map.getBounds();
-    const sw = b.getSouthWest(), ne = b.getNorthEast();
-    const spread = Math.max(ne.lat-sw.lat, ne.lng-sw.lng);
-    if (spread < 0.5) { // only load when zoomed in enough
-      loadData({s:sw.lat,w:sw.lng,n:ne.lat,e:ne.lng});
-    }
-  });
+  // moveend removed - was causing cache invalidation on every map pan
 
   if (userLat) addUserPin();
   updateMapMarkers();
@@ -1777,6 +1770,14 @@ function goScreen(name) {
       map.flyTo([userLat, userLng], 13, {duration:1});
     }
   }, 60);
+  if (name==='list') {
+    // Re-render list when returning from map/fav
+    if (results.length > 0) {
+      renderList();
+    } else if (allResults.length > 0 && lastCityLat) {
+      applyFilterAndRender(lastCityLat, lastCityLng);
+    }
+  }
   if (name==='fav') renderFavs();
 }
 

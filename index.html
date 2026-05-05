@@ -1041,13 +1041,20 @@ function getCity(lat, lng) {
 async function loadData(bbox=null) {
   if (isLoading) return;
 
-  // Always clear cache when loadData is triggered by search
-  // (category switches never reach here — they go via setCat → applyFilterAndRender)
   const currentQ = searchQ.trim().toLowerCase();
-  if (!bbox) {
-    // Reset everything before loading new data
+
+  // If cache valid for this query → just filter and render, no fetch
+  if (!bbox && allResults.length > 0 && lastCityLat !== null && currentQ === lastSearchQ) {
+    applyFilterAndRender(lastCityLat, lastCityLng);
+    return;
+  }
+
+  // New query → clear stale cache
+  if (currentQ !== lastSearchQ) {
     allResults = [];
     results = [];
+    lastCityLat = null;
+    lastCityLng = null;
   }
 
   isLoading = true;
@@ -1400,10 +1407,11 @@ function setCat(id) {
   activeCat = id;
   filterCats = new Set([id]);
   renderCatPills();
-  // Always prefer cache if available
   if (allResults.length > 0 && lastCityLat !== null) {
+    // Cache hit → filter locally
     applyFilterAndRender(lastCityLat, lastCityLng);
-  } else if (searchQ.length >= 2 || userLat || lastCityLat) {
+  } else if (searchQ.length >= 2 || userLat) {
+    // No cache → fetch
     loadData();
   }
 }
@@ -1465,7 +1473,7 @@ function applyFilter() {
   renderCatPills();
   if (allResults.length > 0 && lastCityLat !== null) {
     applyFilterAndRender(lastCityLat, lastCityLng);
-  } else if (userLat || searchQ.length >= 3) {
+  } else if (searchQ.length >= 2 || userLat) {
     loadData();
   }
 }
@@ -1767,9 +1775,6 @@ function goScreen(name) {
       map.flyTo([lastCityLat, lastCityLng], 13, {duration:1});
     } else if (userLat) {
       map.flyTo([userLat, userLng], 13, {duration:1});
-    }
-    if (allResults.length === 0 && (userLat || searchQ.length >= 2)) {
-      loadData();
     }
   }, 60);
   if (name==='fav') renderFavs();

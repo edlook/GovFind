@@ -1078,7 +1078,7 @@ async function loadData() {
   let lat = userLat, lng = userLng;
   if (searchQ.length >= 2) {
     try {
-      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ + ', Deutschland')}&format=json&limit=5&addressdetails=1`;
+      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ)}&format=json&limit=10&addressdetails=1&countrycodes=de`;
       const gr = await fetch(geoUrl, {
         signal: AbortSignal.timeout(8000),
         headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' }
@@ -1086,7 +1086,12 @@ async function loadData() {
       const gd = await gr.json();
       if (gd.length > 0) {
         // Prefer city/town/municipality over villages or streets
-        const best = gd.find(r => ['city','town','municipality','administrative'].includes(r.type) || r.class === 'boundary')
+        // Strict: prefer large cities (type=city), then towns, then administrative
+        const best = gd.find(r => r.type === 'city' && r.class === 'boundary')
+                  || gd.find(r => r.type === 'administrative' && r.class === 'boundary')
+                  || gd.find(r => r.type === 'town' && r.class === 'boundary')
+                  || gd.find(r => ['city','town','municipality'].includes(r.type))
+                  || gd.find(r => r.class === 'boundary')
                   || gd[0];
         lat = parseFloat(best.lat);
         lng = parseFloat(best.lon);
@@ -1494,35 +1499,35 @@ function openDetailById(id) {
 }
 
 async function resolveAddr(p) {
-  if (p.addr || p._addrResolved) return;
+  if (p._addrResolved) return;
   p._addrResolved = true;
   try {
     const r = await fetch(
       `https://nominatim.openstreetmap.org/reverse?lat=${p.lat}&lon=${p.lng}&format=json&zoom=18&addressdetails=1`,
-      { headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' }, signal: AbortSignal.timeout(5000) }
+      { headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' }, signal: AbortSignal.timeout(6000) }
     );
     const d = await r.json();
     const a = d.address || {};
-    const road = a.road || a.pedestrian || a.path || '';
+    const road = a.road || a.pedestrian || a.footway || a.path || '';
     const num  = a.house_number || '';
     const plz  = a.postcode || '';
     const city = a.city || a.town || a.village || a.suburb || '';
     const addr = [road + (num ? ' ' + num : ''), plz + (city ? ' ' + city : '')].filter(Boolean).join(', ');
     if (addr.trim()) {
       p.addr = addr;
-      p.city = p.city || city;
-      // Update detail sheet if open
+      if (!p.city) p.city = city;
+      // Update detail sheet
       const loading = document.getElementById('detail-addr-loading');
       if (loading) loading.remove();
-      const el = document.getElementById('detail-addr-val');
-      if (el) el.textContent = addr;
-      const el2 = document.getElementById('detail-addr-row');
-      if (el2) el2.style.display = '';
-      // Update list card in-place without full re-render
-      const cardAddr = document.querySelector(`[data-id="${p.id}"] .place-addr`);
+      const addrRow = document.getElementById('detail-addr-row');
+      const addrVal = document.getElementById('detail-addr-val');
+      if (addrVal) addrVal.textContent = addr;
+      if (addrRow) addrRow.style.display = '';
+      // Update list card
+      const cardAddr = document.querySelector('[data-id="' + String(p.id) + '"] .place-addr');
       if (cardAddr) cardAddr.textContent = '📍 ' + addr;
     }
-  } catch(e) { /* silently fail */ }
+  } catch(e) { console.warn('resolveAddr failed:', e.message); }
 }
 
 function openDetail(p) {

@@ -1041,11 +1041,18 @@ function getCity(lat, lng) {
 async function loadData(bbox=null) {
   if (isLoading) return;
 
-  // Use cache only if same city (searchQ unchanged) → filter locally
+  // Use cache ONLY for category switches (same city, same searchQ)
   const currentQ = searchQ.trim().toLowerCase();
-  if (!bbox && allResults.length > 0 && lastCityLat !== null && currentQ === lastSearchQ) {
+  const sameCity = (currentQ === lastSearchQ && lastCityLat !== null && allResults.length > 0);
+  if (!bbox && sameCity) {
     applyFilterAndRender(lastCityLat, lastCityLng);
     return;
+  }
+  // New city or no cache → clear old data immediately
+  if (currentQ !== lastSearchQ) {
+    allResults = [];
+    results = [];
+    lastCityLat = null; lastCityLng = null;
   }
 
   isLoading = true;
@@ -1754,10 +1761,13 @@ function goScreen(name) {
   if (name==='map') setTimeout(()=>{
     initMap();
     map.invalidateSize();
-    if (results.length > 0) {
-      updateMapMarkers();
-      if (lastCityLat) map.flyTo([lastCityLat, lastCityLng], 13, {duration:1});
-    } else if (allResults.length === 0 && (userLat || searchQ.length >= 2)) {
+    updateMapMarkers();
+    if (lastCityLat) {
+      map.flyTo([lastCityLat, lastCityLng], 13, {duration:1});
+    } else if (userLat) {
+      map.flyTo([userLat, userLng], 13, {duration:1});
+    }
+    if (allResults.length === 0 && (userLat || searchQ.length >= 2)) {
       loadData();
     }
   }, 60);

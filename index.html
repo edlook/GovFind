@@ -1041,18 +1041,11 @@ function getCity(lat, lng) {
 async function loadData(bbox=null) {
   if (isLoading) return;
 
-  // Use cache ONLY for category switches (same city, same searchQ)
+  // Category switch with valid cache → filter locally, no fetch
   const currentQ = searchQ.trim().toLowerCase();
-  const sameCity = (currentQ === lastSearchQ && lastCityLat !== null && allResults.length > 0);
-  if (!bbox && sameCity) {
+  if (!bbox && allResults.length > 0 && lastCityLat !== null && currentQ === lastSearchQ) {
     applyFilterAndRender(lastCityLat, lastCityLng);
     return;
-  }
-  // New city or no cache → clear old data immediately
-  if (currentQ !== lastSearchQ) {
-    allResults = [];
-    results = [];
-    lastCityLat = null; lastCityLng = null;
   }
 
   isLoading = true;
@@ -1089,6 +1082,16 @@ async function loadData(bbox=null) {
         lat = parseFloat(best.lat);
         lng = parseFloat(best.lon);
         const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
+        // If geocoded same city as cached → skip Overpass, just re-render
+        if (allResults.length > 0 && lastCityLat !== null &&
+            Math.abs(lat - lastCityLat) < 0.05 && Math.abs(lng - lastCityLng) < 0.05) {
+          lastSearchQ = currentQ;
+          document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
+          applyFilterAndRender(lat, lng);
+          showLoading(false);
+          isLoading = false;
+          return;
+        }
 
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) {
@@ -1111,6 +1114,9 @@ async function loadData(bbox=null) {
       isLoading = false; return;
     }
   }
+
+  // Use lastCityLat as fallback if geocode didn't run (e.g. short query or GPS mode)
+  if (!lat && lastCityLat) { lat = lastCityLat; lng = lastCityLng; }
 
   if (!lat || !lng) {
     showLoading(false);
@@ -1185,6 +1191,10 @@ async function loadData(bbox=null) {
 }
 
 function applyFilterAndRender(lat, lng) {
+  // Fallback to lastCityLat if lat not provided
+  const useLat = lat || lastCityLat;
+  const useLng = lng || lastCityLng;
+
   const cat = filterCats.has('all') ? 'all' : [...filterCats][0] || 'all';
 
   if (cat === 'all') {
@@ -1193,14 +1203,12 @@ function applyFilterAndRender(lat, lng) {
     results = allResults.filter(p => p.cat === cat);
   }
 
-  if (lat) results.sort((a,b) => dist(lat,lng,a.lat,a.lng) - dist(lat,lng,b.lat,b.lng));
+  if (useLat) results.sort((a,b) => dist(useLat,useLng,a.lat,a.lng) - dist(useLat,useLng,b.lat,b.lng));
 
   renderList();
   if (map) {
     updateMapMarkers();
-    if (lastCityLat && lastCityLat !== userLat) {
-      map.flyTo([lastCityLat, lastCityLng], 13, { duration: 1 });
-    }
+    if (lastCityLat) map.flyTo([lastCityLat, lastCityLng], 13, { duration: 1 });
   }
 }
 
@@ -1305,7 +1313,8 @@ function renderList() {
   // Group by city
   const grouped = {};
   results.forEach(p => {
-    const key = p.city || 'Unbekannt';
+    const cityFallback = searchQ ? (searchQ.charAt(0).toUpperCase() + searchQ.slice(1).toLowerCase()) : 'Unbekannt';
+    const key = p.city || cityFallback;
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(p);
   });
@@ -1400,9 +1409,10 @@ function setCat(id) {
   activeCat = id;
   filterCats = new Set([id]);
   renderCatPills();
+  // Always prefer cache if available
   if (allResults.length > 0 && lastCityLat !== null) {
     applyFilterAndRender(lastCityLat, lastCityLng);
-  } else if (searchQ.length >= 2 || userLat) {
+  } else if (searchQ.length >= 2 || userLat || lastCityLat) {
     loadData();
   }
 }

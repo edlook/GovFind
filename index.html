@@ -1098,6 +1098,12 @@ async function loadData() {
         const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) document.getElementById('map-sub').textContent = `Behörden in ${city}`;
+        // If cached coords differ significantly from new geocode → force reload
+        if (lastCityLat !== null && allResults.length > 0 &&
+            (Math.abs(lat - lastCityLat) > 0.05 || Math.abs(lng - lastCityLng) > 0.05)) {
+          console.log('📍 City changed, clearing cache');
+          allResults = []; results = []; lastCityLat = null; lastCityLng = null;
+        }
 
         document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
         if (map) {

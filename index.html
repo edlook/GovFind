@@ -919,6 +919,7 @@ let favs = new Set(JSON.parse(localStorage.getItem('govfavs') || '[]'));
 let map = null, mapMarkers = L.layerGroup ? L.layerGroup() : null;
 let activeScreen = 'list';
 let searchTimer = null;
+let fetchController = null; // abort old requests on new search
 let selectedPlace = null;
 let isLoading = false;
 let allResults = []; // full cache for current city — filter locally without re-fetching
@@ -1042,7 +1043,10 @@ function getCity(lat, lng) {
 // OSM DATA LOADING
 // ════════════════════════════════════════
 async function loadData() {
-  if (isLoading) return;
+  // Abort any in-flight request
+  if (fetchController) fetchController.abort();
+  fetchController = new AbortController();
+  const signal = fetchController.signal;
 
   const currentQ = searchQ.trim().toLowerCase();
 
@@ -1073,42 +1077,73 @@ async function loadData() {
   let lat = userLat, lng = userLng;
   if (searchQ.length >= 2) {
     try {
-      const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ + ', Deutschland')}&format=json&limit=5&addressdetails=1&countrycodes=de`;
-      const gr = await fetch(geoUrl, {
-        signal: AbortSignal.timeout(8000),
-        headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' }
-      });
-      const gd = await gr.json();
-      if (gd.length > 0) {
-        // Prefer city/town/municipality over villages or streets
-        // Strict: prefer large cities (type=city), then towns, then administrative
-        const best = gd.find(r => r.type === 'city' && r.class === 'boundary')
-                  || gd.find(r => r.type === 'administrative' && r.class === 'boundary')
-                  || gd.find(r => r.type === 'town' && r.class === 'boundary')
-                  || gd.find(r => ['city','town','municipality'].includes(r.type))
-                  || gd.find(r => r.class === 'boundary')
-                  || gd[0];
-        lat = parseFloat(best.lat);
-        lng = parseFloat(best.lon);
-        const city = best.address?.city || best.address?.town || best.address?.village || best.address?.county || searchQ;
-        document.getElementById('hdr-sub').textContent = `Behörden in ${city}`;
-        if (map) {
-          map.flyTo([lat, lng], 13, { duration: 1.2 });
-          document.getElementById('map-sub').textContent = `Behörden in ${city}`;
+      let lat2 = null, lng2 = null, city2 = null;
+
+      // Try Nominatim first
+      try {
+        const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ + ', Deutschland')}&format=json&limit=5&addressdetails=1&countrycodes=de`;
+        const gr = await fetch(geoUrl, { signal, headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' } });
+        const gd = await gr.json();
+        if (gd.length > 0) {
+          const best = gd.find(r => r.type === 'city' && r.class === 'boundary')
+                    || gd.find(r => r.type === 'administrative' && r.class === 'boundary')
+                    || gd.find(r => r.type === 'town' && r.class === 'boundary')
+                    || gd.find(r => r.class === 'boundary')
+                    || gd[0];
+          lat2 = parseFloat(best.lat);
+          lng2 = parseFloat(best.lon);
+          city2 = best.address?.city || best.address?.town || best.address?.village || searchQ;
+          console.log('✅ Nominatim:', city2, lat2, lng2);
         }
-      } else {
-        throw new Error('Nicht gefunden');
+      } catch(e1) {
+        if (e1.name === 'AbortError') { isLoading = false; return; }
+        console.warn('Nominatim failed:', e1.message);
+      }
+
+      // Fallback to Photon if Nominatim failed
+      if (!lat2) {
+        try {
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQ)}&limit=5&lang=de&bbox=5.87,47.27,15.04,55.06`;
+          const pr = await fetch(photonUrl, { signal });
+          const pd = await pr.json();
+          const features = pd.features || [];
+          const best = features.find(f => f.properties.type === 'city')
+                    || features.find(f => ['city','town','village'].includes(f.properties.osm_value))
+                    || features[0];
+          if (best) {
+            lng2 = best.geometry.coordinates[0];
+            lat2 = best.geometry.coordinates[1];
+            city2 = best.properties.name || searchQ;
+            console.log('✅ Photon fallback:', city2, lat2, lng2);
+          }
+        } catch(e2) {
+          if (e2.name === 'AbortError') { isLoading = false; return; }
+          console.warn('Photon failed:', e2.message);
+        }
+      }
+
+      if (!lat2) {
+        showLoading(false);
+        document.getElementById('list-body').innerHTML = `
+          <div class="state-wrap">
+            <div class="state-icon">🔍</div>
+            <div class="state-title">Stadt nicht gefunden</div>
+            <div class="state-sub">"${searchQ}" wurde nicht gefunden.</div>
+            <button class="state-btn" onclick="loadData()">🔄 Erneut versuchen</button>
+          </div>`;
+        isLoading = false; return;
+      }
+
+      lat = lat2; lng = lng2;
+      document.getElementById('hdr-sub').textContent = `Behörden in ${city2}`;
+      if (map) {
+        map.flyTo([lat, lng], 13, { duration: 1.2 });
+        document.getElementById('map-sub').textContent = `Behörden in ${city2}`;
       }
     } catch(e) {
-      console.warn('Geocode failed:', e.message);
+      if (e.name === 'AbortError') { isLoading = false; return; }
+      console.warn('Geocode error:', e.message);
       showLoading(false);
-      document.getElementById('list-body').innerHTML = `
-        <div class="state-wrap">
-          <div class="state-icon">🔍</div>
-          <div class="state-title">Stadt nicht gefunden</div>
-          <div class="state-sub">"${searchQ}" wurde nicht gefunden.</div>
-          <button class="state-btn" onclick="loadData()">🔄 Erneut versuchen</button>
-        </div>`;
       isLoading = false; return;
     }
   }
@@ -1177,6 +1212,11 @@ async function loadData() {
     applyFilterAndRender(lat, lng);
     showLoading(false);
   } catch(e) {
+    if (e.name === 'AbortError') {
+      console.log('Request aborted - new search started');
+      isLoading = false;
+      return;
+    }
     console.error('Overpass error:', e);
     showLoading(false);
     showError();

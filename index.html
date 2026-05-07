@@ -1079,8 +1079,62 @@ async function loadData() {
     try {
       let lat2 = null, lng2 = null, city2 = null;
 
-      // Try Nominatim first
-      try {
+      // Built-in dictionary for major German cities (instant, no network)
+      const CITY_DB = {
+        'berlin':[52.5200,13.4050,'Berlin'], 'hamburg':[53.5753,10.0153,'Hamburg'],
+        'münchen':[48.1351,11.5820,'München'], 'munchen':[48.1351,11.5820,'München'],
+        'munich':[48.1351,11.5820,'München'], 'köln':[50.9333,6.9500,'Köln'],
+        'koeln':[50.9333,6.9500,'Köln'], 'cologne':[50.9333,6.9500,'Köln'],
+        'frankfurt':[50.1109,8.6821,'Frankfurt am Main'], 'frankfurt am main':[50.1109,8.6821,'Frankfurt am Main'],
+        'stuttgart':[48.7758,9.1829,'Stuttgart'], 'düsseldorf':[51.2217,6.7762,'Düsseldorf'],
+        'dusseldorf':[51.2217,6.7762,'Düsseldorf'], 'leipzig':[51.3406,12.3747,'Leipzig'],
+        'dortmund':[51.5139,7.4653,'Dortmund'], 'essen':[51.4556,7.0116,'Essen'],
+        'bremen':[53.0793,8.8017,'Bremen'], 'dresden':[51.0493,13.7381,'Dresden'],
+        'hannover':[52.3759,9.7320,'Hannover'], 'nürnberg':[49.4521,11.0767,'Nürnberg'],
+        'nurnberg':[49.4521,11.0767,'Nürnberg'], 'nuernberg':[49.4521,11.0767,'Nürnberg'],
+        'duisburg':[51.4344,6.7623,'Duisburg'], 'bochum':[51.4818,7.2162,'Bochum'],
+        'wuppertal':[51.2562,7.1508,'Wuppertal'], 'bielefeld':[52.0302,8.5325,'Bielefeld'],
+        'bonn':[50.7324,7.1007,'Bonn'], 'münster':[51.9607,7.6261,'Münster'],
+        'munster':[51.9607,7.6261,'Münster'], 'karlsruhe':[49.0069,8.4037,'Karlsruhe'],
+        'mannheim':[49.4875,8.4660,'Mannheim'], 'augsburg':[48.3705,10.8978,'Augsburg'],
+        'wiesbaden':[50.0782,8.2398,'Wiesbaden'], 'mönchengladbach':[51.1805,6.4428,'Mönchengladbach'],
+        'gelsenkirchen':[51.5177,7.0857,'Gelsenkirchen'], 'braunschweig':[52.2689,10.5268,'Braunschweig'],
+        'aachen':[50.7753,6.0839,'Aachen'], 'kiel':[54.3233,10.1228,'Kiel'],
+        'chemnitz':[50.8278,12.9214,'Chemnitz'], 'halle':[51.4828,11.9697,'Halle'],
+        'magdeburg':[52.1205,11.6276,'Magdeburg'], 'freiburg':[47.9990,7.8421,'Freiburg im Breisgau'],
+        'krefeld':[51.3388,6.5853,'Krefeld'], 'mainz':[49.9929,8.2473,'Mainz'],
+        'lübeck':[53.8655,10.6866,'Lübeck'], 'lubeck':[53.8655,10.6866,'Lübeck'],
+        'erfurt':[50.9848,11.0299,'Erfurt'], 'oberhausen':[51.4963,6.8637,'Oberhausen'],
+        'rostock':[54.0924,12.0991,'Rostock'], 'kassel':[51.3127,9.4797,'Kassel'],
+        'hagen':[51.3671,7.4633,'Hagen'], 'potsdam':[52.3906,13.0645,'Potsdam'],
+        'saarbrücken':[49.2354,6.9969,'Saarbrücken'], 'saarbrucken':[49.2354,6.9969,'Saarbrücken'],
+        'hamm':[51.6739,7.8226,'Hamm'], 'mülheim':[51.4270,6.8823,'Mülheim an der Ruhr'],
+        'osnabrück':[52.2799,8.0472,'Osnabrück'], 'ludwigshafen':[49.4774,8.4452,'Ludwigshafen'],
+        'oldenburg':[53.1435,8.2146,'Oldenburg'], 'leverkusen':[51.0459,6.9845,'Leverkusen'],
+        'heidelberg':[49.4093,8.6942,'Heidelberg'], 'darmstadt':[49.8728,8.6512,'Darmstadt'],
+        'paderborn':[51.7189,8.7575,'Paderborn'], 'regensburg':[49.0195,12.0974,'Regensburg'],
+        'ingolstadt':[48.7665,11.4257,'Ingolstadt'], 'würzburg':[49.7944,9.9294,'Würzburg'],
+        'wurzburg':[49.7944,9.9294,'Würzburg'], 'ulm':[48.3984,9.9916,'Ulm'],
+        'heilbronn':[49.1427,9.2109,'Heilbronn'], 'göttingen':[51.5413,9.9158,'Göttingen'],
+        'gottingen':[51.5413,9.9158,'Göttingen'], 'wolfsburg':[52.4227,10.7865,'Wolfsburg'],
+        'recklinghausen':[51.6142,7.1979,'Recklinghausen'], 'pforzheim':[48.8922,8.6946,'Pforzheim'],
+        'offenbach':[50.1055,8.7622,'Offenbach am Main'], 'bremerhaven':[53.5396,8.5809,'Bremerhaven'],
+        'fürth':[49.4771,10.9887,'Fürth'], 'furth':[49.4771,10.9887,'Fürth'],
+        'wolfenbüttel':[52.1637,10.5381,'Wolfenbüttel'], 'erlangen':[49.5897,11.0078,'Erlangen'],
+        'trier':[49.7499,6.6371,'Trier'], 'siegen':[50.8748,8.0243,'Siegen'],
+        'jena':[50.9272,11.5861,'Jena'], 'cottbus':[51.7563,14.3329,'Cottbus'],
+        'koblenz':[50.3569,7.5890,'Koblenz'], 'gera':[50.8782,12.0810,'Gera'],
+        'münchengladbach':[51.1805,6.4428,'Mönchengladbach'],
+        'baden-baden':[48.7610,8.2400,'Baden-Baden'], 'baden baden':[48.7610,8.2400,'Baden-Baden'],
+      };
+      const q = searchQ.trim().toLowerCase();
+      if (CITY_DB[q]) {
+        [lat2, lng2, city2] = CITY_DB[q];
+        console.log('✅ City DB hit:', city2);
+      }
+
+      // Try Nominatim first (if not in DB)
+      if (!lat2) { try {
         const geoUrl = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(searchQ + ', Deutschland')}&format=json&limit=5&addressdetails=1&countrycodes=de`;
         const gr = await fetch(geoUrl, { signal, headers: { 'Accept-Language': 'de', 'User-Agent': 'GovFind/1.0' } });
         const gd = await gr.json();
@@ -1098,17 +1152,20 @@ async function loadData() {
       } catch(e1) {
         if (e1.name === 'AbortError') { isLoading = false; return; }
         console.warn('Nominatim failed:', e1.message);
-      }
+      } } // end Nominatim if
 
       // Fallback to Photon if Nominatim failed
       if (!lat2) {
         try {
-          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQ)}&limit=5&lang=de&bbox=5.87,47.27,15.04,55.06`;
+          const photonUrl = `https://photon.komoot.io/api/?q=${encodeURIComponent(searchQ)}&limit=10&lang=de&bbox=5.87,47.27,15.04,55.06`;
           const pr = await fetch(photonUrl, { signal });
           const pd = await pr.json();
-          const features = pd.features || [];
-          const best = features.find(f => f.properties.type === 'city')
-                    || features.find(f => ['city','town','village'].includes(f.properties.osm_value))
+          const features = (pd.features || []).filter(f => f.properties.country === 'Deutschland' || f.properties.countrycode === 'DE');
+          // Strictly prefer city type
+          const best = features.find(f => f.properties.osm_value === 'city' && f.properties.type === 'city')
+                    || features.find(f => f.properties.osm_value === 'city')
+                    || features.find(f => f.properties.type === 'city')
+                    || features.find(f => f.properties.osm_value === 'town')
                     || features[0];
           if (best) {
             lng2 = best.geometry.coordinates[0];
@@ -1175,16 +1232,29 @@ async function loadData() {
 
   const makeQuery = (body) => `[out:json][timeout:25];\n(\n${body}\n);\nout center 300;`;
 
-  const EP = 'https://overpass-api.de/api/interpreter';
+  const OVERPASS_EPS = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://overpass.openstreetmap.ru/api/interpreter',
+  ];
 
   async function fetchOverpass(queryBody) {
-    const resp = await fetch(EP, {
-      method: 'POST',
-      body: 'data=' + encodeURIComponent(makeQuery(queryBody)),
-      signal: AbortSignal.timeout(28000),
-    });
-    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    return resp.json();
+    for (const ep of OVERPASS_EPS) {
+      try {
+        const resp = await fetch(ep, {
+          method: 'POST',
+          body: 'data=' + encodeURIComponent(makeQuery(queryBody)),
+          signal: signal,
+        });
+        if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+        return await resp.json();
+      } catch(e) {
+        if (e.name === 'AbortError') throw e;
+        console.warn(`Overpass ${ep} failed:`, e.message);
+        await new Promise(r => setTimeout(r, 150));
+      }
+    }
+    throw new Error('All Overpass endpoints failed');
   }
 
   try {
@@ -1192,11 +1262,12 @@ async function loadData() {
     let elements = [];
     for (const [i, q] of [[1,Q1],[2,Q2]]) {
       try {
-        if (i === 2) await new Promise(r => setTimeout(r, 500));
+        if (i === 2) await new Promise(r => setTimeout(r, 300));
         const d = await fetchOverpass(q);
         elements = elements.concat(d.elements || []);
         console.log(`✅ Q${i}: ${d.elements?.length} elements`);
       } catch(e) {
+        if (e.name === 'AbortError') { isLoading = false; return; }
         console.warn(`Q${i} failed:`, e.message);
       }
     }
